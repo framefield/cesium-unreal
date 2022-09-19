@@ -107,7 +107,7 @@ ACesium3DTileset::ACesium3DTileset()
 
   this->RootComponent =
       CreateDefaultSubobject<UCesium3DTilesetRoot>(TEXT("Tileset"));
-  this->RootComponent->SetMobility(EComponentMobility::Static);
+  this->RootComponent->SetMobility(EComponentMobility::Movable);
 
   PlatformName = UGameplayStatics::GetPlatformName();
 }

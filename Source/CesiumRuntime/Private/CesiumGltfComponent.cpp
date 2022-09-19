@@ -2023,7 +2023,7 @@ static void loadPrimitiveGameThreadPart(
       UPhysicsSettings::Get()->bSupportUVFromHitResults;
 
   // pMesh->SetMobility(EComponentMobility::Movable);
-  pMesh->SetMobility(EComponentMobility::Static);
+  pMesh->SetMobility(EComponentMobility::Movable);
 
   // pMesh->bDrawMeshCollisionIfComplex = true;
   // pMesh->bDrawMeshCollisionIfSimple = true;
@@ -2061,7 +2061,7 @@ UCesiumGltfComponent::CreateOffGameThread(
 
   UCesiumGltfComponent* Gltf = NewObject<UCesiumGltfComponent>(pParentActor);
   Gltf->SetUsingAbsoluteLocation(true);
-  Gltf->SetMobility(EComponentMobility::Static);
+  Gltf->SetMobility(EComponentMobility::Movable);
   Gltf->SetFlags(RF_Transient | RF_DuplicateTransient | RF_TextExportTransient);
 
   Gltf->Metadata = std::move(pReal->loadModelResult.Metadata);
