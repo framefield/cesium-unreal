@@ -287,6 +287,13 @@ void ACesium3DTileset::SetEnableOcclusionCulling(bool bEnableOcclusionCulling) {
   }
 }
 
+void ACesium3DTileset::SetGlobalScale(double dGlobalScale) {
+  if (this->GlobalScale != dGlobalScale) {
+    this->GlobalScale = dGlobalScale;
+    this->DestroyTileset();
+  }
+}
+
 void ACesium3DTileset::SetOcclusionPoolSize(int32 newOcclusionPoolSize) {
   if (this->OcclusionPoolSize != newOcclusionPoolSize) {
     this->OcclusionPoolSize = newOcclusionPoolSize;
@@ -613,6 +620,7 @@ public:
     options.pModel = &model;
     options.alwaysIncludeTangents = this->_pActor->GetAlwaysIncludeTangents();
     options.createPhysicsMeshes = this->_pActor->GetCreatePhysicsMeshes();
+    options.dGlobalScale = this->_pActor->GlobalScale;
 
 #if PHYSICS_INTERFACE_PHYSX
     options.pPhysXCookingModule = this->_pPhysXCookingModule;
@@ -1992,6 +2000,7 @@ void ACesium3DTileset::PostEditChangeProperty(
       PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, ApplyDpiScaling) ||
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, EnableOcclusionCulling) ||
+      PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, GlobalScale) ||
       // For properties nested in structs, GET_MEMBER_NAME_CHECKED will prefix
       // with the struct name, so just do a manual string comparison.
       PropNameAsString == TEXT("RenderCustomDepth") ||

@@ -22,6 +22,7 @@ struct CreateModelOptions {
 #if PHYSICS_INTERFACE_PHYSX
   IPhysXCookingModule* pPhysXCookingModule = nullptr;
 #endif
+  double dGlobalScale = 1.0;
 };
 
 struct CreateNodeOptions {
