@@ -16,6 +16,7 @@ struct CreateModelOptions {
   const FMetadataDescription* pEncodedMetadataDescription = nullptr;
   bool alwaysIncludeTangents = false;
   bool createPhysicsMeshes = true;
+  double dGlobalScale = 1.0;
 };
 
 struct CreateNodeOptions {

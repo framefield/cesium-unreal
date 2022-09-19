@@ -613,6 +613,15 @@ public:
       meta = (EditCondition = "UseLodTransitions", EditConditionHides))
   float LodTransitionLength = 0.5f;
 
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintReadWrite,
+      Category = "Cesium",
+      BlueprintGetter = GetGlobalScale,
+      BlueprintSetter = SetGlobalScale,
+      meta = (ClampMin = 0.000001, ClampMax = 10))
+  double GlobalScale = 1.0;
+
 private:
   UPROPERTY(BlueprintGetter = GetLoadProgress, Category = "Cesium")
   float LoadProgress = 0.0f;
@@ -933,6 +942,14 @@ public:
 
   UFUNCTION(BlueprintCallable, Category = "Cesium|Rendering")
   void PauseMovieSequencer();
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium")
+  double GetGlobalScale() const {
+    return GlobalScale;
+  }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium")
+  void SetGlobalScale(double dGlobalScale);
 
   /**
    * This method is not supposed to be called by clients. It is currently
