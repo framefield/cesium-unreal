@@ -1,6 +1,8 @@
 // Copyright 2020-2021 CesiumGS, Inc. and Contributors
 
 #include "CesiumGltfComponent.h"
+
+#include "Cesium3DTileset.h"
 #include "Async/Async.h"
 #include "Cesium3DTilesSelection/GltfUtilities.h"
 #include "Cesium3DTilesSelection/RasterOverlay.h"
@@ -655,6 +657,9 @@ static void loadPrimitive(
 
   CESIUM_TRACE("loadPrimitive<T>");
 
+  const double globalScale =
+    options.pMeshOptions->pNodeOptions->pModelOptions->dGlobalScale;
+
   const Model& model =
       *options.pMeshOptions->pNodeOptions->pModelOptions->pModel;
   const Mesh& mesh = *options.pMeshOptions->pMesh;
@@ -798,13 +803,13 @@ static void loadPrimitive(
     glm::dvec3 maxPosition{std::numeric_limits<double>::lowest()};
     if (min.size() != 3 || max.size() != 3) {
       for (int32_t i = 0; i < positionView.size(); ++i) {
-        minPosition.x = glm::min<double>(minPosition.x, positionView[i].X);
-        minPosition.y = glm::min<double>(minPosition.y, positionView[i].Y);
-        minPosition.z = glm::min<double>(minPosition.z, positionView[i].Z);
+        minPosition.x = glm::min<double>(minPosition.x, positionView[i].X * globalScale);
+        minPosition.y = glm::min<double>(minPosition.y, positionView[i].Y) * globalScale;
+        minPosition.z = glm::min<double>(minPosition.z, positionView[i].Z * globalScale);
 
-        maxPosition.x = glm::max<double>(maxPosition.x, positionView[i].X);
-        maxPosition.y = glm::max<double>(maxPosition.y, positionView[i].Y);
-        maxPosition.z = glm::max<double>(maxPosition.z, positionView[i].Z);
+        maxPosition.x = glm::max<double>(maxPosition.x, positionView[i].X * globalScale);
+        maxPosition.y = glm::max<double>(maxPosition.y, positionView[i].Y * globalScale);
+        maxPosition.z = glm::max<double>(maxPosition.z, positionView[i].Z * globalScale);
       }
     } else {
       minPosition = glm::dvec3(min[0], min[1], min[2]);
@@ -871,7 +876,7 @@ static void loadPrimitive(
       for (int i = 0; i < indices.Num(); ++i) {
         FStaticMeshBuildVertex& vertex = StaticMeshBuildVertices[i];
         uint32 vertexIndex = indices[i];
-        vertex.Position = positionView[vertexIndex];
+        vertex.Position = positionView[vertexIndex] * globalScale;
         vertex.UVs[0] = TMeshVector2(0.0f, 0.0f);
         vertex.UVs[2] = TMeshVector2(0.0f, 0.0f);
         RenderData->Bounds.SphereRadius = FMath::Max(
@@ -882,7 +887,7 @@ static void loadPrimitive(
       CESIUM_TRACE("copy positions");
       for (int i = 0; i < StaticMeshBuildVertices.Num(); ++i) {
         FStaticMeshBuildVertex& vertex = StaticMeshBuildVertices[i];
-        vertex.Position = positionView[i];
+        vertex.Position = positionView[i] * globalScale;
         vertex.UVs[0] = TMeshVector2(0.0f, 0.0f);
         vertex.UVs[2] = TMeshVector2(0.0f, 0.0f);
         RenderData->Bounds.SphereRadius = FMath::Max(
@@ -1810,6 +1815,7 @@ static void SetMetadataParameterValues(
 }
 
 static void loadPrimitiveGameThreadPart(
+    ACesium3DTileset* pTileSetActor,
     UCesiumGltfComponent* pGltf,
     LoadPrimitiveResult& loadResult,
     const glm::dmat4x4& cesiumToUnrealTransform,
@@ -1820,7 +1826,14 @@ static void loadPrimitiveGameThreadPart(
   pMesh->overlayTextureCoordinateIDToUVIndex =
       loadResult.overlayTextureCoordinateIDToUVIndex;
   pMesh->textureCoordinateMap = std::move(loadResult.textureCoordinateMap);
+
+
+  const double globalScale = pTileSetActor->GlobalScale;
   pMesh->HighPrecisionNodeTransform = loadResult.transform;
+  pMesh->HighPrecisionNodeTransform[3][0] *= globalScale;
+  pMesh->HighPrecisionNodeTransform[3][1] *= globalScale;
+  pMesh->HighPrecisionNodeTransform[3][2] *= globalScale;
+
   pMesh->UpdateTransformFromCesium(cesiumToUnrealTransform);
 
   pMesh->bUseDefaultCollision = false;
@@ -2082,10 +2095,13 @@ UCesiumGltfComponent::CreateOffGameThread(
   Gltf->CustomDepthParameters = CustomDepthParameters;
 
   encodeMetadataGameThreadPart(Gltf->EncodedMetadata);
+
+  ACesium3DTileset* pTilesetActor = Cast<ACesium3DTileset>(pParentActor);
   for (LoadNodeResult& node : pReal->loadModelResult.nodeResults) {
     if (node.meshResult) {
       for (LoadPrimitiveResult& primitive : node.meshResult->primitiveResults) {
         loadPrimitiveGameThreadPart(
+            pTilesetActor,
             Gltf,
             primitive,
             cesiumToUnrealTransform,
