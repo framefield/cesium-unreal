@@ -1399,7 +1399,8 @@ std::vector<FCesiumCamera> ACesium3DTileset::GetSceneCaptures() const {
 /*static*/ Cesium3DTilesSelection::ViewState
 ACesium3DTileset::CreateViewStateFromViewParameters(
     const FCesiumCamera& camera,
-    const glm::dmat4& unrealWorldToTileset) {
+    const glm::dmat4& unrealWorldToTileset,
+    double globalScale) {
 
   double horizontalFieldOfView =
       FMath::DegreesToRadians(camera.FieldOfViewDegrees);
@@ -1434,12 +1435,13 @@ ACesium3DTileset::CreateViewStateFromViewParameters(
   FVector direction = camera.Rotation.RotateVector(FVector(1.0f, 0.0f, 0.0f));
   FVector up = camera.Rotation.RotateVector(FVector(0.0f, 0.0f, 1.0f));
 
-  glm::dvec3 tilesetCameraLocation = glm::dvec3(
-      unrealWorldToTileset *
-      glm::dvec4(camera.Location.X, camera.Location.Y, camera.Location.Z, 1.0));
   glm::dvec3 tilesetCameraFront = glm::normalize(glm::dvec3(
       unrealWorldToTileset *
       glm::dvec4(direction.X, direction.Y, direction.Z, 0.0)));
+  glm::dvec3 tilesetCameraLocation = glm::dvec3(
+      unrealWorldToTileset *
+      (glm::dvec4(camera.Location.X, camera.Location.Y, camera.Location.Z, 1.0) -
+        glm::dvec4(tilesetCameraFront.x, tilesetCameraFront.y, tilesetCameraFront.z, 0) * globalScale));
   glm::dvec3 tilesetCameraUp = glm::normalize(
       glm::dvec3(unrealWorldToTileset * glm::dvec4(up.X, up.Y, up.Z, 0.0)));
 
@@ -1935,7 +1937,7 @@ void ACesium3DTileset::Tick(float DeltaTime) {
   std::vector<Cesium3DTilesSelection::ViewState> frustums;
   for (const FCesiumCamera& camera : cameras) {
     frustums.push_back(
-        CreateViewStateFromViewParameters(camera, unrealWorldToTileset));
+        CreateViewStateFromViewParameters(camera, unrealWorldToTileset, GlobalScale));
   }
 
   const Cesium3DTilesSelection::ViewUpdateResult& result =

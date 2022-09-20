@@ -1014,7 +1014,8 @@ private:
 
   static Cesium3DTilesSelection::ViewState CreateViewStateFromViewParameters(
       const FCesiumCamera& camera,
-      const glm::dmat4& unrealWorldToTileset);
+      const glm::dmat4& unrealWorldToTileset,
+      double globalScale);
 
   std::vector<FCesiumCamera> GetCameras() const;
   std::vector<FCesiumCamera> GetPlayerCameras() const;

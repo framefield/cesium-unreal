@@ -82,10 +82,14 @@ void UCesium3DTilesetRoot::_updateAbsoluteLocation() {
 void UCesium3DTilesetRoot::_updateTilesetToUnrealRelativeWorldTransform() {
   ACesium3DTileset* pTileset = this->GetOwner<ACesium3DTileset>();
 
-  const glm::dmat4& ellipsoidCenteredToUnrealWorld =
+  glm::dmat4 ellipsoidCenteredToUnrealWorld =
       pTileset->ResolveGeoreference()
           ->GetGeoTransforms()
           .GetEllipsoidCenteredToAbsoluteUnrealWorldTransform();
+
+  ellipsoidCenteredToUnrealWorld[3][0] *= pTileset->GlobalScale;
+  ellipsoidCenteredToUnrealWorld[3][1] *= pTileset->GlobalScale;
+  ellipsoidCenteredToUnrealWorld[3][2] *= pTileset->GlobalScale;
 
   glm::dvec3 relativeLocation =
       this->_absoluteLocation - this->_worldOriginLocation;
