@@ -11,6 +11,7 @@
 struct CalcBoundsOperation {
   const FTransform& localToWorld;
   const glm::dmat4& highPrecisionTransform;
+  const double globalScale;
 
   // Bounding volumes are expressed in tileset coordinates, which is usually
   // ECEF.

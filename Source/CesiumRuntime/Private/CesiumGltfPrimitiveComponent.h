@@ -36,6 +36,7 @@ public:
    * The double-precision transformation matrix for this glTF node.
    */
   glm::dmat4x4 HighPrecisionNodeTransform;
+  double GlobalScale;
 
   OverlayTextureCoordinateIDMap overlayTextureCoordinateIDToUVIndex;
   std::unordered_map<uint32_t, uint32_t> textureCoordinateMap;
