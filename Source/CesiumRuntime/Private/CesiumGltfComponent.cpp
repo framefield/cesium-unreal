@@ -1834,6 +1834,8 @@ static void loadPrimitiveGameThreadPart(
   pMesh->HighPrecisionNodeTransform[3][1] *= globalScale;
   pMesh->HighPrecisionNodeTransform[3][2] *= globalScale;
 
+  pMesh->GlobalScale = globalScale;
+
   pMesh->UpdateTransformFromCesium(cesiumToUnrealTransform);
 
   pMesh->bUseDefaultCollision = false;

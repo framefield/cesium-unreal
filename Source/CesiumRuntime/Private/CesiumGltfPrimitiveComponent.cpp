@@ -3,6 +3,7 @@
 #include "CesiumGltfPrimitiveComponent.h"
 #include "CalcBounds.h"
 #include "CesiumLifetime.h"
+#include "CesiumRuntime.h"
 #include "CesiumMaterialUserData.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -11,7 +12,7 @@
 #include <variant>
 
 // Sets default values for this component's properties
-UCesiumGltfPrimitiveComponent::UCesiumGltfPrimitiveComponent() {
+UCesiumGltfPrimitiveComponent::UCesiumGltfPrimitiveComponent(): GlobalScale(1) {
   // Set this component to be initialized when the game starts, and to be ticked
   // every frame.  You can turn these features off to improve performance if you
   // don't need them.
@@ -137,13 +138,16 @@ void UCesiumGltfPrimitiveComponent::BeginDestroy() {
   Super::BeginDestroy();
 }
 
+
 FBoxSphereBounds UCesiumGltfPrimitiveComponent::CalcBounds(
     const FTransform& LocalToWorld) const {
   if (!this->boundingVolume) {
     return Super::CalcBounds(LocalToWorld);
   }
 
-  return std::visit(
-      CalcBoundsOperation{LocalToWorld, this->HighPrecisionNodeTransform},
+  FBoxSphereBounds bounds = std::visit(
+      CalcBoundsOperation{LocalToWorld, this->HighPrecisionNodeTransform, this->GlobalScale},
       *this->boundingVolume);
+
+  return bounds;
 }

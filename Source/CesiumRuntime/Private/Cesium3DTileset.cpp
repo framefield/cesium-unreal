@@ -1383,21 +1383,22 @@ ACesium3DTileset::CreateViewStateFromViewParameters(
     const glm::dmat4& unrealWorldToTileset,
     double globalScale) {
 
+  double inverseGlobalScale = (1.0 / globalScale);
   double horizontalFieldOfView =
       FMath::DegreesToRadians(camera.FieldOfViewDegrees);
 
   double actualAspectRatio;
-  glm::dvec2 size(camera.ViewportSize.X, camera.ViewportSize.Y);
+  glm::dvec2 size(camera.ViewportSize.X * inverseGlobalScale, camera.ViewportSize.Y * inverseGlobalScale);
 
   if (camera.OverrideAspectRatio != 0.0f) {
     // Use aspect ratio and recompute effective viewport size after black bars
     // are added.
     actualAspectRatio = camera.OverrideAspectRatio;
-    double computedX = actualAspectRatio * camera.ViewportSize.Y;
-    double computedY = camera.ViewportSize.Y / actualAspectRatio;
+    double computedX = actualAspectRatio * size.x;
+    double computedY = size.y / actualAspectRatio;
 
-    double barWidth = camera.ViewportSize.X - computedX;
-    double barHeight = camera.ViewportSize.Y - computedY;
+    double barWidth = size.x - computedX;
+    double barHeight = size.y - computedY;
 
     if (barWidth > 0.0 && barWidth > barHeight) {
       // Black bars on the sides
@@ -1407,7 +1408,7 @@ ACesium3DTileset::CreateViewStateFromViewParameters(
       size.y = computedY;
     }
   } else {
-    actualAspectRatio = camera.ViewportSize.X / camera.ViewportSize.Y;
+    actualAspectRatio = size.x / size.y;
   }
 
   double verticalFieldOfView =
@@ -1416,13 +1417,15 @@ ACesium3DTileset::CreateViewStateFromViewParameters(
   FVector direction = camera.Rotation.RotateVector(FVector(1.0f, 0.0f, 0.0f));
   FVector up = camera.Rotation.RotateVector(FVector(0.0f, 0.0f, 1.0f));
 
+
+  glm::dvec3 tilesetCameraLocation = glm::dvec3(
+        unrealWorldToTileset *
+        glm::dvec4(camera.Location.X, camera.Location.Y, camera.Location.Z, 1.0))
+    * inverseGlobalScale;
+
   glm::dvec3 tilesetCameraFront = glm::normalize(glm::dvec3(
       unrealWorldToTileset *
       glm::dvec4(direction.X, direction.Y, direction.Z, 0.0)));
-  glm::dvec3 tilesetCameraLocation = glm::dvec3(
-      unrealWorldToTileset *
-      (glm::dvec4(camera.Location.X, camera.Location.Y, camera.Location.Z, 1.0) -
-        glm::dvec4(tilesetCameraFront.x, tilesetCameraFront.y, tilesetCameraFront.z, 0) * globalScale));
   glm::dvec3 tilesetCameraUp = glm::normalize(
       glm::dvec3(unrealWorldToTileset * glm::dvec4(up.X, up.Y, up.Z, 0.0)));
 
@@ -1895,8 +1898,8 @@ void ACesium3DTileset::Tick(float DeltaTime) {
     return;
   }
 
-  glm::dmat4 unrealWorldToTileset = glm::affineInverse(
-      this->GetCesiumTilesetToUnrealRelativeWorldTransform());
+  auto baseTransform = Cast<UCesium3DTilesetRoot>(this->RootComponent)->GetCesiumTilesetToUnrealRelativeWorldTransform();
+  glm::dmat4 unrealWorldToTileset = glm::affineInverse(baseTransform);
 
   std::vector<Cesium3DTilesSelection::ViewState> frustums;
   for (const FCesiumCamera& camera : cameras) {
