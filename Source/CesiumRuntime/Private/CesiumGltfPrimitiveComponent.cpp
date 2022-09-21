@@ -145,9 +145,7 @@ FBoxSphereBounds UCesiumGltfPrimitiveComponent::CalcBounds(
     return Super::CalcBounds(LocalToWorld);
   }
 
-  FBoxSphereBounds bounds = std::visit(
+  return std::visit(
       CalcBoundsOperation{LocalToWorld, this->HighPrecisionNodeTransform, this->GlobalScale},
       *this->boundingVolume);
-
-  return bounds;
 }
