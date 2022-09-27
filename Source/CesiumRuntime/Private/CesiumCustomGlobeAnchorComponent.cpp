@@ -463,6 +463,8 @@ FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransformFromGlobeTran
     return pAnchorOwnerRoot->GetComponentTransform();
   }
 
+  this->ResolveTileset();
+
   const GeoTransforms& geoTransforms =
       this->ResolveGeoreference()->GetGeoTransforms();
 
