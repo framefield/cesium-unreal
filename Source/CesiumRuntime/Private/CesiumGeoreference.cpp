@@ -762,7 +762,7 @@ void ACesiumGeoreference::Tick(float DeltaTime) {
   _handleViewportOriginEditing();
 #endif
 
-  if (!this->_shouldManageSubLevels()) {
+  if (this->_shouldManageSubLevels()) {
     this->_insideSublevel = _updateSublevelState();
   }
 }
@@ -1174,5 +1174,5 @@ void ACesiumGeoreference::_enableAndGeoreferenceCurrentSubLevel() {
 
 bool ACesiumGeoreference::_shouldManageSubLevels() const {
   // Only a Georeference in the PersistentLevel should manage sub-levels.
-  return !this->GetLevel()->IsPersistentLevel();
+  return this->GetLevel()->IsPersistentLevel() && this->ControlsCesiumSubLevels;
 }

@@ -54,11 +54,18 @@ public:
 
   ACesiumGeoreference();
 
+  UPROPERTY(
+      EditAnywhere,
+      Category = "Cesium|Cesium Sublevels")
+  bool ControlsCesiumSubLevels = false;
+
   /*
    * Whether to visualize the level loading radii in the editor. Helpful for
    * initially positioning the level and choosing a load radius.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium|Cesium Sublevels")
+  UPROPERTY(EditAnywhere,
+    Category = "Cesium|Cesium Sublevels",
+    Meta = (EditCondition = "ControlsCesiumSubLevels", EditConditionHides))
   bool ShowLoadRadii = true;
 
   /*
@@ -92,7 +99,8 @@ public:
       Category = "Cesium|Cesium Sublevels",
       Meta =
           (TitleProperty = "LevelName",
-           DisplayName = "Georeferenced Sublevels"))
+           DisplayName = "Georeferenced Sublevels",
+           EditCondition = "ControlsCesiumSubLevels", EditConditionHides))
   TArray<FCesiumSubLevel> CesiumSubLevels;
 
   /**
