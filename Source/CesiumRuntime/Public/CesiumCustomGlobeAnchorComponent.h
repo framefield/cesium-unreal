@@ -25,13 +25,12 @@ class CESIUMRUNTIME_API UCesiumCustomGlobeAnchorComponent : public UActorCompone
 
 private:
   /**
-   * The designated georeference actor controlling how the owning actor's
-   * coordinate system relates to the coordinate system in this Unreal Engine
-   * level.
+   * The designated tileset actor ensuring that the tileset transformation is
+   * applied to the owning actor as well.
    *
    * If this is null, the Component will find and use the first Georeference
    * Actor in the level, or create one if necessary. To get the active/effective
-   * Georeference from Blueprints or C++, use ResolvedGeoreference instead.
+   * Tileset from Blueprints or C++, use ResolvedTileset instead.
    */
   UPROPERTY(
       EditAnywhere,
@@ -42,23 +41,30 @@ private:
       Meta = (AllowPrivateAccess))
   ACesium3DTileset* Tileset = nullptr;
 
-  /**
-   * The designated georeference actor controlling how the owning actor's
-   * coordinate system relates to the coordinate system in this Unreal Engine
-   * level.
-   *
-   * If this is null, the Component will find and use the first Georeference
-   * Actor in the level, or create one if necessary. To get the active/effective
-   * Georeference from Blueprints or C++, use ResolvedGeoreference instead.
-   */
   UPROPERTY(
       EditAnywhere,
       BlueprintReadWrite,
-      BlueprintGetter = GetGeoreference,
-      BlueprintSetter = SetGeoreference,
-      Category = "Cesium|Georeference",
+      BlueprintGetter = GetTilesetTag,
+      BlueprintSetter = SetTilesetTag,
+      Category = "Cesium|Tileset",
       Meta = (AllowPrivateAccess))
-  ACesiumGeoreference* Georeference = nullptr;
+  FName TilesetTag = FName("World");
+
+  /**
+   * The resolved tileset used by this component. This is not serialized
+   * because it may point to a Tileset in the PersistentLevel while this
+   * component is in a sublevel. If the Tileset property is specified,
+   * however then this property will have the same value.
+   *
+   * This property will be null before ResolveTileset is called, which
+   * happens automatically when the component is registered.
+   */
+  UPROPERTY(
+      Transient,
+      BlueprintReadOnly,
+      Category = "Cesium",
+      Meta = (AllowPrivateAccess))
+  ACesium3DTileset* ResolvedTileset = nullptr;
 
   /**
    * The resolved georeference used by this component. This is not serialized
@@ -85,23 +91,23 @@ public:
   UFUNCTION(BlueprintCallable, Category = "Cesium")
   void SetTileset(ACesium3DTileset* NewTileset);
 
-  /** @copydoc UCesiumCustomGlobeAnchorComponent::Georeference */
+  /** @copydoc UCesiumCustomGlobeAnchorComponent::TilesetTag */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  ACesiumGeoreference* GetGeoreference() const;
+  FName GetTilesetTag() const;
 
-  /** @copydoc UCesiumCustomGlobeAnchorComponent::Georeference */
+  /** @copydoc UCesiumCustomGlobeAnchorComponent::TilesetTag */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  void SetGeoreference(ACesiumGeoreference* NewGeoreference);
+  void SetTilesetTag(FName NewTag);
 
   /**
-   * Resolves the Cesium Georeference to use with this Component. Returns
-   * the value of the Georeference property if it is set. Otherwise, finds a
-   * Georeference in the World and returns it, creating it if necessary. The
-   * resolved Georeference is cached so subsequent calls to this function will
-   * return the same instance.
-   */
+ * Resolves the Cesium Georeference to use with this Component. Returns
+ * the value of the Georeference property if it is set. Otherwise, finds a
+ * Georeference in the World and returns it, creating it if necessary. The
+ * resolved Georeference is cached so subsequent calls to this function will
+ * return the same instance.
+ */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  ACesiumGeoreference* ResolveGeoreference();
+  ACesium3DTileset* ResolveTileset();
 
   /**
    * Invalidates the cached resolved georeference, unsubscribing from it and
@@ -109,9 +115,25 @@ public:
    * Georeference will be re-resolved and re-subscribed.
    */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  void InvalidateResolvedGeoreference();
+  void InvalidateResolvedTileset();
 
 private:
+  /**
+   * Resolves the Cesium Georeference to use with this Component. Returns
+   * the value of the Georeference property if it is set. Otherwise, finds a
+   * Georeference in the World and returns it, creating it if necessary. The
+   * resolved Georeference is cached so subsequent calls to this function will
+   * return the same instance.
+   */
+  ACesiumGeoreference* ResolveGeoreference();
+
+  /**
+   * Invalidates the cached resolved georeference, unsubscribing from it and
+   * setting it to null. The next time ResolveGeoreference is called, the
+   * Georeference will be re-resolved and re-subscribed.
+   */
+  void InvalidateResolvedGeoreference();
+
   /**
    * The latitude in degrees of this component, in the range [-90, 90]
    */
@@ -353,8 +375,7 @@ private:
    * used.
    * @return The new Actor position.
    */
-  FTransform _updateActorTransformFromGlobeTransform(
-      const std::optional<glm::dvec3>& newWorldOrigin = std::nullopt);
+  FTransform _updateActorTransformFromGlobeTransform();
 
   /**
    * Sets a new globe transform and updates the Actor transform to match. If
@@ -407,6 +428,6 @@ private:
     USceneComponent* InRootComponent,
     EUpdateTransformFlags UpdateTransformFlags,
     ETeleportType Teleport);
-  void _unregisterTileset();
-  void _registerTileset();
+  void _unregisterTileset(ACesium3DTileset* pTileset);
+  void _registerTileset(ACesium3DTileset* pTileset);
 };
