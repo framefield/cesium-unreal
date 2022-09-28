@@ -587,7 +587,7 @@ void ACesiumGeoreference::_showSubLevelLoadRadii() const {
   if (world->IsGameWorld()) {
     return;
   }
-  if (!this->ShowLoadRadii) {
+  if (!this->ShowLoadRadii || !this->_shouldManageSubLevels()) {
     return;
   }
   const glm::dvec4 originLocation =
