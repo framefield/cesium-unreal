@@ -164,6 +164,9 @@ private:
       Meta = (AllowPrivateAccess))
   double Height = 0.0;
 
+  UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cesium|Georeference")
+  void PrintDebug() const;
+
 public:
   /**
    * Returns the longitude in degrees (X), latitude in degrees (Y),
@@ -195,68 +198,6 @@ public:
   void
   MoveToLongitudeLatitudeHeight(const FVector& TargetLongitudeLatitudeHeight);
 
-private:
-  /**
-   * The Earth-Centered Earth-Fixed X-coordinate of this component in meters.
-   */
-  UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
-  double ECEF_X = 0.0;
-
-  /**
-   * The Earth-Centered Earth-Fixed Y-coordinate of this component in meters.
-   */
-  UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
-  double ECEF_Y = 0.0;
-
-  /**
-   * The Earth-Centered Earth-Fixed Z-coordinate of this component in meters.
-   */
-  UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
-  double ECEF_Z = 0.0;
-
-public:
-  /**
-   * Returns the Earth-Centered, Earth-Fixed (ECEF) coordinates of the actor in
-   * meters, downcasted to a single-precision floating point vector.
-   *
-   * Returns a zero vector if the component is not yet registered.
-   */
-  UFUNCTION(BlueprintCallable, Category = "Cesium")
-  FVector GetECEF() const;
-
-  /**
-   * Moves the Actor to which this component is attached to a given globe
-   * position in Earth-Centered, Earth-Fixed coordinates in meters.
-   *
-   * If AdjustOrientationForGlobeWhenMoving is enabled, this method will also
-   * update the orientation based on the globe curvature.
-   *
-   * @param newPosition The new position.
-   */
-  void MoveToECEF(const glm::dvec3& newPosition);
-
-  /**
-   * Moves the Actor to which this component is attached to a given globe
-   * position in Earth-Centered, Earth-Fixed coordinates in meters.
-   *
-   * If AdjustOrientationForGlobeWhenMoving is enabled, this method will also
-   * update the orientation based on the globe curvature.
-   *
-   * @param newPosition The new position.
-   */
-  UFUNCTION(BlueprintCallable, Category = "Cesium")
-  void MoveToECEF(const FVector& TargetEcef);
-
-
 public:
   /**
    * Using the teleport flag will move objects to the updated transform
@@ -279,16 +220,6 @@ public:
    */
   virtual void
   ApplyWorldOffset(const FVector& InOffset, bool bWorldShift) override;
-
-  /**
-   * Handles reading, writing, and reference collecting using FArchive.
-   * This implementation handles all FProperty serialization, but can be
-   * overridden for native variables.
-   *
-   * This class overrides this method to ensure internal variables are
-   * immediately synchronized with newly-loaded values.
-   */
-  virtual void Serialize(FArchive& Ar) override;
 
   /**
    * Called when a component is created (not loaded). This can happen in the
@@ -328,29 +259,6 @@ protected:
 
 private:
   /**
-   * The current world to ECEF transformation expressed as a simple array of
-   * doubles so that Unreal Engine can serialize it.
-   */
-  UPROPERTY()
-  double _worldToECEF_Array[16];
-
-  static_assert(sizeof(_worldToECEF_Array) == sizeof(glm::dmat4));
-
-  /**
-   * The _actorToECEF_Array cast as a glm::dmat4 for convenience.
-   */
-  glm::dmat4& _worldToECEF = *reinterpret_cast<glm::dmat4*>(_worldToECEF_Array);
-
-  /**
-   * True if the globe transform is a valid and correct representation of the
-   * position and orientation of this Actor. False if the globe transform has
-   * not yet been computed and so the Actor transform is the only valid
-   * representation of the Actor's position and orientation.
-   */
-  UPROPERTY()
-  bool _worldToECEFIsValid = false;
-
-  /**
    * Called when the Component switches to a new Georeference Actor or the
    * existing Georeference is given a new origin Longitude, Latitude, or
    * Height. The Actor's position and orientation are recomputed from the
@@ -360,69 +268,11 @@ private:
   void _onGeoreferenceChanged();
 
   /**
-   * Updates the globe-relative (ECEF) transform from the current Actor
-   * transform.
-   *
-   * @returns The new globe position.
-   */
-  const glm::dmat4& _updateGlobeTransformFromActorTransform();
-
-  /**
    * Updates the Unreal world Actor position from the current globe position.
    *
-   * @param newWorldOrigin The new world OriginLocation to use when computing
-   * the Actor transform. If std::nullopt, the true world OriginLocation is
-   * used.
    * @return The new Actor position.
    */
-  FTransform _updateActorTransformFromGlobeTransform();
-
-  /**
-   * Sets a new globe transform and updates the Actor transform to match. If
-   * `AdjustOrientationForGlobeWhenMoving` is enabled, the orientation is also
-   * adjusted for globe curvature.
-   *
-   * This function does not update the Longitude, Latitude, Height, ECEF_X,
-   * ECEF_Y, or ECEF_Z properties. To do that, call `_updateCartesianProperties`
-   * and `_updateCartographicProperties`.
-   *
-   * @param newTransform The new transform, before it is adjusted for globe
-   * curvature.
-   * @returns The new globe transform, which may be different from
-   * `newTransform` if the orientation has been adjusted for globe curvature.
-   */
-  const glm::dmat4& _setGlobeTransform(const glm::dmat4& newTransform);
-
-  /**
-   * Applies the current values of the ECEF_X, ECEF_Y, and ECEF_Z properties,
-   * updating the Longitude, Latitude, and Height properties, the globe
-   * transform, and the Actor transform. If
-   * `AdjustOrientationForGlobeWhenMoving` is enabled, the orientation is also
-   * adjusted for globe curvature.
-   */
-  void _applyCartesianProperties();
-
-  /**
-   * Updates the ECEF_X, ECEF_Y, and ECEF_Z properties from the current globe
-   * transform.
-   */
-  void _updateCartesianProperties();
-
-  /**
-   * Applies the current values of the Longitude, Latitude, and Height
-   * properties, updating the ECEF_X, ECEF_Y, and ECEF_Z properties, the globe
-   * transform, and the Actor transform. If
-   * `AdjustOrientationForGlobeWhenMoving` is enabled, the orientation is also
-   * adjusted for globe curvature.
-   */
-  void _applyCartographicProperties();
-
-  /**
-   * Updates the Longitude, Latitude, and Height properties from the current
-   * globe transform.
-   */
-  void _updateCartographicProperties();
-
+  FTransform _updateActorTransform();
 
   void _onGlobeTransformChanged(
     USceneComponent* InRootComponent,

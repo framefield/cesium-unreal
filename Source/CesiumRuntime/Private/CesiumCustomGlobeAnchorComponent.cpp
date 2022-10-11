@@ -80,47 +80,25 @@ void UCesiumCustomGlobeAnchorComponent::SetTilesetTag(FName NewTilesetTag) {
   }
 }
 
-FVector UCesiumCustomGlobeAnchorComponent::GetECEF() const {
-  if (!this->_worldToECEFIsValid) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "CesiumCustomGlobeAnchorComponent %s globe position is invalid because the component is not yet registered."),
-        *this->GetName());
-    return FVector(0.0);
-  }
-
-  return VecMath::createVector(glm::dvec3(this->_worldToECEF[3]));
-}
-
-void UCesiumCustomGlobeAnchorComponent::MoveToECEF(const glm::dvec3& newPosition) {
-  this->ECEF_X = newPosition.x;
-  this->ECEF_Y = newPosition.y;
-  this->ECEF_Z = newPosition.z;
-  this->_applyCartesianProperties();
-}
-
-void UCesiumCustomGlobeAnchorComponent::MoveToECEF(const FVector& TargetEcef) {
-  this->MoveToECEF(VecMath::createVector3D(TargetEcef));
-}
-
 ACesiumGeoreference* UCesiumCustomGlobeAnchorComponent::ResolveGeoreference() {
   if (IsValid(this->ResolvedGeoreference)) {
     return this->ResolvedGeoreference;
   }
 
-  if (IsValid(this->Tileset)) {
-    this->ResolvedGeoreference = this->Tileset->GetGeoreference();
+  if (IsValid(this->ResolvedTileset)) {
+    this->ResolvedGeoreference = this->ResolvedTileset->GetGeoreference();
   } else {
-    this->ResolvedGeoreference =
-        ACesiumGeoreference::GetDefaultGeoreference(this);
+    this->ResolvedGeoreference = nullptr;
   }
 
   if (this->ResolvedGeoreference) {
     this->ResolvedGeoreference->OnGeoreferenceUpdated.AddUniqueDynamic(
         this,
         &UCesiumCustomGlobeAnchorComponent::_onGeoreferenceChanged);
+
+    const glm::dmat4& absoluteUnrealToEcef =
+        this->ResolvedGeoreference->GetGeoTransforms()
+            .GetAbsoluteUnrealWorldToEllipsoidCenteredTransform();
   }
 
   this->_onGeoreferenceChanged();
@@ -156,25 +134,40 @@ ACesium3DTileset* UCesiumCustomGlobeAnchorComponent::ResolveTileset() {
       if (actor->ActorHasTag(this->TilesetTag)) {
         this->ResolvedTileset = Cast<ACesium3DTileset>(actor);
 
-        UE_LOG(
-            LogCesium,
-            Display,
-            TEXT(
-              "CesiumCustomGlobeAnchorComponent found tileset %s using tag %s."
-            ),
-            *this->ResolvedTileset->GetName(),
-            *this->TilesetTag.ToString());
-        break;
+        if (IsValid(this->ResolvedTileset)) {
+          this->ResolvedGeoreference = nullptr;
+
+          UE_LOG(
+              LogCesium,
+              Display,
+              TEXT(
+                "CesiumCustomGlobeAnchorComponent %s found tileset %s using tag %s."
+              ),
+              *this->GetOwner()->GetName(),
+              *this->ResolvedTileset->GetName(),
+              *this->TilesetTag.ToString());
+          break;
+        } else {
+          UE_LOG(
+              LogCesium,
+              Warning,
+              TEXT(
+                "CesiumCustomGlobeAnchorComponent %s found invalid tileset %s using tag %s."
+              ),
+              *this->GetOwner()->GetName(),
+              *actor->GetName(),
+              *this->TilesetTag.ToString());
+        }
       }
     }
   }
 
   if (!IsValid(this->ResolvedTileset)) {
     UE_LOG(
-      LogCesium,
-      Warning,
-      TEXT("CesiumCustomGlobeAnchorComponent %s has no tileset."),
-      *this->GetName());
+        LogCesium,
+        Warning,
+        TEXT("CesiumCustomGlobeAnchorComponent %s has no tileset."),
+        *this->GetOwner()->GetName());
   }
 
   _registerTileset(this->ResolvedTileset);
@@ -191,7 +184,8 @@ void UCesiumCustomGlobeAnchorComponent::InvalidateResolvedTileset() {
   this->InvalidateResolvedGeoreference();
 }
 
-void UCesiumCustomGlobeAnchorComponent::_registerTileset(ACesium3DTileset* pTileset) {
+void UCesiumCustomGlobeAnchorComponent::_registerTileset(
+    ACesium3DTileset* pTileset) {
   if (IsValid(pTileset)) {
     USceneComponent* pTileSetRoot = pTileset->GetRootComponent();
     if (pTileSetRoot) {
@@ -202,7 +196,8 @@ void UCesiumCustomGlobeAnchorComponent::_registerTileset(ACesium3DTileset* pTile
   }
 }
 
-void UCesiumCustomGlobeAnchorComponent::_unregisterTileset(ACesium3DTileset* pTileset) {
+void UCesiumCustomGlobeAnchorComponent::_unregisterTileset(
+    ACesium3DTileset* pTileset) {
   if (IsValid(pTileset)) {
     USceneComponent* pTilesetRoot = pTileset->GetRootComponent();
     if (pTilesetRoot) {
@@ -212,36 +207,57 @@ void UCesiumCustomGlobeAnchorComponent::_unregisterTileset(ACesium3DTileset* pTi
 }
 
 
-FVector UCesiumCustomGlobeAnchorComponent::GetLongitudeLatitudeHeight() const {
-  if (!this->_worldToECEFIsValid || !this->ResolvedGeoreference) {
+void UCesiumCustomGlobeAnchorComponent::PrintDebug() const {
+  UE_LOG(
+      LogCesium,
+      Warning,
+      TEXT("UCesiumCustomGlobeAnchorComponent %s debug"),
+      *this->GetOwner()->GetName());
+
+  if (IsValid(this->ResolvedTileset) && IsValid(this->ResolvedGeoreference)) {
+    const auto& GeoPos = this->ResolvedGeoreference->
+                               GetGeoreferenceOriginLongitudeLatitudeHeight();
     UE_LOG(
         LogCesium,
         Warning,
-        TEXT(
-            "CesiumCustomGlobeAnchorComponent %s globe position is invalid because the component is not yet registered."),
-        *this->GetName());
-    return FVector(0.0);
-  }
+        TEXT("ResolvedTileset: %s ResolvedGeoReference: %s %s"),
+        *this->ResolvedTileset->GetActorNameOrLabel(),
+        *this->ResolvedGeoreference->GetActorNameOrLabel(),
+        *GeoPos.ToString());
 
-  return this->ResolvedGeoreference->TransformEcefToLongitudeLatitudeHeight(
-      this->GetECEF());
+    const auto& AbsoluteUnrealToEcef = VecMath::createMatrix(
+        this->ResolvedGeoreference->GetGeoTransforms()
+            .GetAbsoluteUnrealWorldToEllipsoidCenteredTransform());
+
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT("AbsoluteUnrealToEcef %s"),
+        *AbsoluteUnrealToEcef.ToString());
+
+  } else {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT("ResolvedTileset: %s ResolvedGeoReference: %s"),
+        IsValid(this->ResolvedTileset) ? *this->ResolvedTileset->GetName() :
+        TEXT("Invalid"),
+        IsValid(this->ResolvedGeoreference) ? *this->ResolvedGeoreference->
+        GetName() : TEXT("Invalid"));
+  }
+}
+
+FVector UCesiumCustomGlobeAnchorComponent::GetLongitudeLatitudeHeight() const {
+  return FVector(this->Longitude, this->Latitude, this->Height);
 }
 
 void UCesiumCustomGlobeAnchorComponent::MoveToLongitudeLatitudeHeight(
     const glm::dvec3& TargetLongitudeLatitudeHeight) {
-  if (!this->_worldToECEFIsValid || !this->ResolvedGeoreference) {
-    UE_LOG(
-        LogCesium,
-        Error,
-        TEXT(
-            "CesiumCustomGlobeAnchorComponent %s cannot move to a globe position because the component is not yet registered."),
-        *this->GetName());
-    return;
-  }
+  this->Longitude = TargetLongitudeLatitudeHeight.x;
+  this->Latitude = TargetLongitudeLatitudeHeight.y;
+  this->Height = TargetLongitudeLatitudeHeight.z;
 
-  this->MoveToECEF(
-      this->ResolvedGeoreference->TransformLongitudeLatitudeHeightToEcef(
-          TargetLongitudeLatitudeHeight));
+  this->_updateActorTransform();
 }
 
 void UCesiumCustomGlobeAnchorComponent::MoveToLongitudeLatitudeHeight(
@@ -273,32 +289,17 @@ void UCesiumCustomGlobeAnchorComponent::ApplyWorldOffset(
         LogCesium,
         Warning,
         TEXT("CesiumCustomGlobeAnchorComponent %s is not spawned in world"),
-        *this->GetName());
+        *this->GetOwner()->GetName());
     return;
   }
 
   // Update the Actor transform from the globe transform with the new origin
   // location explicitly provided.
-  this->_updateActorTransformFromGlobeTransform();
-}
-
-void UCesiumCustomGlobeAnchorComponent::Serialize(FArchive& Ar) {
-  Super::Serialize(Ar);
-
-  Ar.UsingCustomVersion(FCesiumCustomVersion::GUID);
-
-  const int32 CesiumVersion = Ar.CustomVer(FCesiumCustomVersion::GUID);
-
-  if (CesiumVersion < FCesiumCustomVersion::GeoreferenceRefactoring) {
-    // In previous versions, there was no _worldToECEFIsValid flag. But we can
-    // assume that the previously-stored ECEF transform was valid.
-    this->_worldToECEFIsValid = true;
-  }
+  this->_updateActorTransform();
 }
 
 void UCesiumCustomGlobeAnchorComponent::OnComponentCreated() {
   Super::OnComponentCreated();
-  this->_worldToECEFIsValid = false;
 }
 
 #if WITH_EDITOR
@@ -310,27 +311,20 @@ void UCesiumCustomGlobeAnchorComponent::PostEditChangeProperty(
     return;
   }
 
-  FName propertyName = PropertyChangedEvent.Property->GetFName();
+  const FName PropertyName = PropertyChangedEvent.Property->GetFName();
 
-  if (propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Longitude) ||
-      propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Latitude) ||
-      propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Height)) {
-    this->_applyCartographicProperties();
+  if (PropertyName ==
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Longitude) ||
+      PropertyName ==
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Latitude) ||
+      PropertyName ==
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Height)) {
+    this->_updateActorTransform();
   } else if (
-      propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, ECEF_X) ||
-      propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, ECEF_Y) ||
-      propertyName ==
-          GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, ECEF_Z)) {
-    this->_applyCartesianProperties();
-  } else if (
-      propertyName ==
-      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Tileset)) {
-    this->InvalidateResolvedGeoreference();
+    PropertyName ==
+    GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Tileset)) {
+    this->InvalidateResolvedTileset();
+    this->ResolveTileset();
   }
 }
 #endif
@@ -344,7 +338,7 @@ void UCesiumCustomGlobeAnchorComponent::OnRegister() {
         LogCesium,
         Warning,
         TEXT("CesiumCustomGlobeAnchorComponent %s does not have a valid owner"),
-        *this->GetName());
+        *this->GetOwner()->GetName());
     return;
   }
 
@@ -354,11 +348,7 @@ void UCesiumCustomGlobeAnchorComponent::OnRegister() {
   // the globe transform is valid.
   this->ResolveTileset();
 
-  // If the globe transform is not yet valid, compute it from the actor
-  // transform now.
-  if (!this->_worldToECEFIsValid) {
-    this->_updateGlobeTransformFromActorTransform();
-  }
+  this->_updateActorTransform();
 }
 
 void UCesiumCustomGlobeAnchorComponent::OnUnregister() {
@@ -369,235 +359,113 @@ void UCesiumCustomGlobeAnchorComponent::OnUnregister() {
 }
 
 void UCesiumCustomGlobeAnchorComponent::_onGlobeTransformChanged(
-      USceneComponent* InRootComponent,
-      EUpdateTransformFlags UpdateTransformFlags,
-      ETeleportType Teleport) {
-
-  if (this->_worldToECEFIsValid) {
-    this->_updateActorTransformFromGlobeTransform();
-  }
+    USceneComponent* InRootComponent,
+    EUpdateTransformFlags UpdateTransformFlags,
+    ETeleportType Teleport) {
+  this->_updateActorTransform();
 }
 
 void UCesiumCustomGlobeAnchorComponent::_onGeoreferenceChanged() {
-  if (this->_worldToECEFIsValid) {
-    this->_updateActorTransformFromGlobeTransform();
-  }
+  this->_updateActorTransform();
 }
 
-const glm::dmat4&
-UCesiumCustomGlobeAnchorComponent::_updateGlobeTransformFromActorTransform() {
-  if (!this->ResolvedGeoreference) {
+FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
+  const AActor* AnchorOwner = this->GetOwner();
+  if (!IsValid(AnchorOwner)) {
     UE_LOG(
         LogCesium,
         Warning,
-        TEXT(
-            "CesiumCustomGlobeAnchorComponent %s cannot update globe transform from actor transform because there is no valid Georeference."),
-        *this->GetName());
-    this->_worldToECEFIsValid = false;
-    return this->_worldToECEF;
-  }
-
-  const AActor* pRootActor = this->GetOwner();
-  if (!IsValid(pRootActor)) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT("UCesiumCustomGlobeAnchorComponent %s does not have a valid root actor"),
-        *this->GetName());
-    this->_worldToECEFIsValid = false;
-    return this->_worldToECEF;
-  }
-
-  glm::dmat4 worldTransform(1.0);
-  worldTransform[3] += CesiumActors::getWorldOrigin4D(pRootActor);
-  worldTransform[3].w = 1.0;
-
-  // Convert to ECEF
-  const glm::dmat4& absoluteUnrealToEcef =
-    this->ResolvedGeoreference->GetGeoTransforms()
-          .GetAbsoluteUnrealWorldToEllipsoidCenteredTransform();
-
-  this->_worldToECEF = absoluteUnrealToEcef * worldTransform;
-  this->_worldToECEFIsValid = true;
-
-  this->_updateCartesianProperties();
-  // this->_updateCartographicProperties();
-
-#if WITH_EDITOR
-  // In the Editor, mark this component modified so Undo works properly.
-  this->Modify();
-#endif
-
-  return this->_worldToECEF;
-}
-
-FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransformFromGlobeTransform() {
-  const AActor* pAnchorOwner = this->GetOwner();
-  if (!IsValid(pAnchorOwner)) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT("UCesiumCustomGlobeAnchorComponent %s does not have a valid owner"),
-        *this->GetName());
+        TEXT("UCesiumCustomGlobeAnchorComponent %s does not have a valid owner"
+        ),
+        *this->GetOwner()->GetName());
     return FTransform();
   }
 
-  USceneComponent* pAnchorOwnerRoot = pAnchorOwner->GetRootComponent();
-  if (!IsValid(pAnchorOwnerRoot)) {
+  USceneComponent* AnchorOwnerRoot = AnchorOwner->GetRootComponent();
+  if (!IsValid(AnchorOwnerRoot)) {
     UE_LOG(
         LogCesium,
         Warning,
         TEXT(
-            "The owner of UCesiumCustomGlobeAnchorComponent %s does not have a valid root component"),
-        *this->GetName());
+          "The owner of UCesiumCustomGlobeAnchorComponent %s does not have a valid root component"
+        ),
+        *this->GetOwner()->GetName());
     return FTransform();
-  }
-
-  if (!this->_worldToECEFIsValid) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "UCesiumCustomGlobeAnchorComponent %s cannot update Actor transform from Globe transform because the Globe transform is not known."),
-        *this->GetName());
-    return pAnchorOwnerRoot->GetComponentTransform();
   }
 
   this->ResolveTileset();
 
-  const GeoTransforms& geoTransforms =
+  const GeoTransforms& GeoTransforms =
       this->ResolveGeoreference()->GetGeoTransforms();
 
-  glm::dmat4 tilesetTransform(1.0);
+  glm::dmat4 TilesetTransform(1.0);
   if (IsValid(this->ResolvedTileset)) {
-    tilesetTransform = VecMath::createMatrix4D(this->ResolvedTileset->GetTransform().ToMatrixWithScale());
+    TilesetTransform = VecMath::createMatrix4D(
+        this->ResolvedTileset->GetTransform().ToMatrixWithScale());
   }
 
+  // apply lon/lat transform
+  auto AbsoluteUnrealToECEF = this->ResolvedGeoreference->GetGeoTransforms()
+                                  .GetAbsoluteUnrealWorldToEllipsoidCenteredTransform();
+  const auto& ECEF = this->ResolvedGeoreference->
+                           TransformLongitudeLatitudeHeightToEcef(
+                               glm::dvec3(
+                                   this->Longitude,
+                                   this->Latitude,
+                                   this->Height));
+  AbsoluteUnrealToECEF[3] = glm::dvec4(ECEF.x, ECEF.y, ECEF.z, 1.0);
+
   // Transform ECEF to UE absolute world
-  const glm::dmat4& ecefToAbsoluteUnreal =
-      geoTransforms.GetEllipsoidCenteredToAbsoluteUnrealWorldTransform();
-  glm::dmat4 actorToUnreal = ecefToAbsoluteUnreal * this->_worldToECEF;
+  const glm::dmat4& ECEFToAbsoluteUnreal =
+      GeoTransforms.GetEllipsoidCenteredToAbsoluteUnrealWorldTransform();
+  glm::dmat4 ActorToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
+  ActorToUnreal = TilesetTransform * ActorToUnreal;
 
-  // // Transform UE absolute world to UE relative world
-  // actorToUnreal[3] -= CesiumActors::getWorldOrigin4D(pAnchorOwner);
-  // actorToUnreal[3].w = 1.0;
 
-  // apply tileset transform
-  actorToUnreal = tilesetTransform * actorToUnreal;
+  const auto& Center =  ActorToUnreal * glm::dvec4(0,0, 0, 1);
+  const auto& UpECEF = this->ResolvedGeoreference->
+                           TransformLongitudeLatitudeHeightToEcef(
+                               glm::dvec3(
+                                   this->Longitude,
+                                   this->Latitude,
+                                   this->Height - 100));
+  AbsoluteUnrealToECEF[3] = glm::dvec4(UpECEF.x, UpECEF.y, UpECEF.z, 1.0);
+  glm::dmat4 UpToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
+  UpToUnreal = TilesetTransform * UpToUnreal;
 
-  FTransform actorTransform = FTransform(VecMath::createMatrix(actorToUnreal));
+  const auto& ForwardECEF = this->ResolvedGeoreference->
+                         TransformLongitudeLatitudeHeightToEcef(
+                             glm::dvec3(
+                                 this->Longitude,
+                                 fabs(this->Latitude - 0.001),
+                                 this->Height));
+  AbsoluteUnrealToECEF[3] = glm::dvec4(ForwardECEF.x, ForwardECEF.y, ForwardECEF.z, 1.0);
+  glm::dmat4 ForwardToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
+  ForwardToUnreal = TilesetTransform * ForwardToUnreal;
+
+
+  const auto& UpCenter =  UpToUnreal * glm::dvec4(0,0, 0, 1);
+  const auto& ForwardCenter =  ForwardToUnreal * glm::dvec4(0,0, 0, 1);
+  const auto& Up = Center - UpCenter;
+  const auto& Forward = Center - ForwardCenter;
+
+  const auto& Rotation = FRotationMatrix::MakeFromZY(  FVector3d(Up.x, Up.y, Up.z), FVector3d(Forward.x, Forward.y, Forward.z)).ToQuat();
+
+  FTransform ActorTransform = FTransform(VecMath::createMatrix(ActorToUnreal));
+  ActorTransform.SetRotation(Rotation);
 
 #if WITH_EDITOR
   // In the Editor, mark the root component modified so Undo works properly.
-  pAnchorOwnerRoot->Modify();
+  AnchorOwnerRoot->Modify();
 #endif
 
   // Set the Actor transform
-  pAnchorOwnerRoot->SetWorldTransform(
-      actorTransform,
+  AnchorOwnerRoot->SetWorldTransform(
+      ActorTransform,
       false,
       nullptr,
-      this->TeleportWhenUpdatingTransform ? ETeleportType::TeleportPhysics
-                                          : ETeleportType::None);
-  return actorTransform;
-}
-
-const glm::dmat4& UCesiumCustomGlobeAnchorComponent::_setGlobeTransform(
-    const glm::dmat4& newTransform) {
-#if WITH_EDITOR
-  // In the Editor, mark this component modified so Undo works properly.
-  this->Modify();
-#endif
-
-
-  this->_worldToECEF = newTransform;
-  this->_updateActorTransformFromGlobeTransform();
-  return this->_worldToECEF;
-}
-
-void UCesiumCustomGlobeAnchorComponent::_applyCartesianProperties() {
-  // If we don't yet know our globe transform, compute it from the Actor
-  // transform now. But restore the ECEF position properties afterward.
-  if (!this->_worldToECEFIsValid) {
-    double x = this->ECEF_X;
-    double y = this->ECEF_Y;
-    double z = this->ECEF_Z;
-    this->_updateGlobeTransformFromActorTransform();
-    this->ECEF_X = x;
-    this->ECEF_Y = y;
-    this->ECEF_Z = z;
-  }
-
-  glm::dmat4 transform = this->_worldToECEF;
-  transform[3] = glm::dvec4(this->ECEF_X, this->ECEF_Y, this->ECEF_Z, 1.0);
-  this->_setGlobeTransform(transform);
-
-  this->_updateCartographicProperties();
-}
-
-void UCesiumCustomGlobeAnchorComponent::_updateCartesianProperties() {
-  if (!this->_worldToECEFIsValid) {
-    return;
-  }
-
-  this->ECEF_X = this->_worldToECEF[3].x;
-  this->ECEF_Y = this->_worldToECEF[3].y;
-  this->ECEF_Z = this->_worldToECEF[3].z;
-}
-
-void UCesiumCustomGlobeAnchorComponent::_applyCartographicProperties() {
-  // If we don't yet know our globe transform, compute it from the Actor
-  // transform now. But restore the LLH position properties afterward.
-  if (!this->_worldToECEFIsValid) {
-    double longitude = this->Longitude;
-    double latitude = this->Latitude;
-    double height = this->Height;
-    this->_updateGlobeTransformFromActorTransform();
-    this->Longitude = longitude;
-    this->Latitude = latitude;
-    this->Height = height;
-  }
-
-  ACesiumGeoreference* pGeoreference = this->ResolveGeoreference();
-  if (!pGeoreference) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "The UCesiumCustomGlobeAnchorComponent %s does not have a valid Georeference"),
-        *this->GetName());
-  }
-
-  glm::dmat4 transform = this->_worldToECEF;
-  glm::dvec3 newEcef =
-      pGeoreference->GetGeoTransforms().TransformLongitudeLatitudeHeightToEcef(
-          glm::dvec3(this->Longitude, this->Latitude, this->Height));
-  transform[3] = glm::dvec4(newEcef, 1.0);
-  this->_setGlobeTransform(transform);
-
-  this->_updateCartesianProperties();
-}
-
-void UCesiumCustomGlobeAnchorComponent::_updateCartographicProperties() {
-  if (!this->_worldToECEFIsValid) {
-    return;
-  }
-
-  ACesiumGeoreference* pGeoreference = this->ResolveGeoreference();
-  if (!pGeoreference) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "The UCesiumCustomGlobeAnchorComponent %s does not have a valid Georeference"),
-        *this->GetName());
-  }
-
-  glm::dvec3 llh =
-      pGeoreference->GetGeoTransforms().TransformEcefToLongitudeLatitudeHeight(
-          glm::dvec3(this->_worldToECEF[3]));
-
-  this->Longitude = llh.x;
-  this->Latitude = llh.y;
-  this->Height = llh.z;
+      this->TeleportWhenUpdatingTransform
+        ? ETeleportType::TeleportPhysics
+        : ETeleportType::None);
+  return ActorTransform;
 }
