@@ -95,13 +95,8 @@ ACesiumGeoreference* UCesiumCustomGlobeAnchorComponent::ResolveGeoreference() {
     this->ResolvedGeoreference->OnGeoreferenceUpdated.AddUniqueDynamic(
         this,
         &UCesiumCustomGlobeAnchorComponent::_onGeoreferenceChanged);
-
-    const glm::dmat4& absoluteUnrealToEcef =
-        this->ResolvedGeoreference->GetGeoTransforms()
-            .GetAbsoluteUnrealWorldToEllipsoidCenteredTransform();
+    this->_onGeoreferenceChanged();
   }
-
-  this->_onGeoreferenceChanged();
 
   return this->ResolvedGeoreference;
 }
@@ -393,7 +388,9 @@ FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
     return FTransform();
   }
 
-  this->ResolveTileset();
+  if (!IsValid(ResolvedTileset)) {
+    return FTransform();
+  }
 
   const GeoTransforms& GeoTransforms =
       this->ResolveGeoreference()->GetGeoTransforms();
