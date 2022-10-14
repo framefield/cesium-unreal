@@ -589,6 +589,17 @@ public:
       meta = (ClampMin = 0.000001, ClampMax = 10))
   double GlobalScale = 1.0;
 
+
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintReadWrite,
+      BlueprintGetter = GetVisible,
+      BlueprintSetter = SetVisible,
+      Category = "Rendering")
+  bool Visible = true;
+  bool _wasVisible = true;
+
+
 private:
   UPROPERTY(BlueprintGetter = GetLoadProgress, Category = "Cesium")
   float LoadProgress = 0.0f;
@@ -912,6 +923,14 @@ public:
   UFUNCTION(BlueprintSetter, Category = "Cesium")
   void SetGlobalScale(double dGlobalScale);
 
+  UFUNCTION(BlueprintSetter, Category = "Rendering")
+  bool GetVisible() const {
+    return Visible;
+  }
+
+  UFUNCTION(BlueprintSetter, Category = "Rendering")
+  void SetVisible(bool bVisible);
+
   /**
    * This method is not supposed to be called by clients. It is currently
    * only required by the UnrealResourcePreparer.
@@ -992,6 +1011,8 @@ public:
   void UpdateTransformFromCesium();
 
 private:
+  void hideAllTiles();
+
   /**
    * Writes the values of all properties of this actor into the
    * TilesetOptions, to take them into account during the next
