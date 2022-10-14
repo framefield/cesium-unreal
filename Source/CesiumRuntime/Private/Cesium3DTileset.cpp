@@ -303,6 +303,15 @@ void ACesium3DTileset::SetGlobalScale(double dGlobalScale) {
   }
 }
 
+void ACesium3DTileset::SetVisible(bool bVisible) {
+  if (this->Visible != bVisible) {
+    this->Visible = bVisible;
+    if (!Visible) {
+      hideAllTiles();
+    }
+  }
+}
+
 void ACesium3DTileset::SetOcclusionPoolSize(int32 newOcclusionPoolSize) {
   if (this->OcclusionPoolSize != newOcclusionPoolSize) {
     this->OcclusionPoolSize = newOcclusionPoolSize;
@@ -1900,6 +1909,15 @@ void ACesium3DTileset::Tick(float DeltaTime) {
     return;
   }
 
+  if (!this->Visible) {
+    if (_wasVisible) {
+      _wasVisible = false;
+      hideAllTiles();
+    }
+    return;
+  }
+  _wasVisible = true;
+
   if (!this->_pTileset) {
     LoadTileset();
 
@@ -1983,6 +2001,16 @@ void ACesium3DTileset::Tick(float DeltaTime) {
   }
 }
 
+void ACesium3DTileset::hideAllTiles() {
+  std::unordered_set<Cesium3DTilesSelection::Tile*> AllTilesSet;
+  const auto Tileset = GetTileset();
+  Tileset->forEachLoadedTile([&AllTilesSet] (Cesium3DTilesSelection::Tile& tile) { AllTilesSet.insert(&tile); } );
+
+  removeCollisionForTiles(AllTilesSet);
+  std::vector<Cesium3DTilesSelection::Tile*> AllTilesVector(AllTilesSet.begin(), AllTilesSet.end());
+  hideTiles(AllTilesVector);
+}
+
 void ACesium3DTileset::EndPlay(const EEndPlayReason::Type EndPlayReason) {
   this->DestroyTileset();
   AActor::EndPlay(EndPlayReason);
@@ -2061,6 +2089,11 @@ void ACesium3DTileset::PostEditChangeProperty(
   } else if (
       PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, CreditSystem)) {
     this->InvalidateResolvedCreditSystem();
+  } else if (
+      PropNameAsString == TEXT("Visible")) {
+    if (!Visible) {
+      hideAllTiles();
+    }
   } else if (
       PropName ==
       GET_MEMBER_NAME_CHECKED(ACesium3DTileset, MaximumScreenSpaceError)) {
