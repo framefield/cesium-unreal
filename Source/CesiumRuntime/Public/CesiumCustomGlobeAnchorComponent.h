@@ -269,10 +269,8 @@ private:
 
   /**
    * Updates the Unreal world Actor position from the current globe position.
-   *
-   * @return The new Actor position.
    */
-  FTransform _updateActorTransform();
+  void _updateActorTransform();
 
   void _onGlobeTransformChanged(
     USceneComponent* InRootComponent,
