@@ -333,6 +333,15 @@ void UCesiumCustomGlobeAnchorComponent::OnRegister() {
         LogCesium,
         Warning,
         TEXT("CesiumCustomGlobeAnchorComponent %s does not have a valid owner"),
+        *this->GetName());
+    return;
+  }
+
+  if (!IsValid(this->GetWorld())) {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT("CesiumCustomGlobeAnchorComponent %s does not have a valid world"),
         *this->GetOwner()->GetName());
     return;
   }
@@ -364,7 +373,7 @@ void UCesiumCustomGlobeAnchorComponent::_onGeoreferenceChanged() {
   this->_updateActorTransform();
 }
 
-FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
+void UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
   const AActor* AnchorOwner = this->GetOwner();
   if (!IsValid(AnchorOwner)) {
     UE_LOG(
@@ -372,8 +381,17 @@ FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
         Warning,
         TEXT("UCesiumCustomGlobeAnchorComponent %s does not have a valid owner"
         ),
+        *this->GetName());
+    return;
+  }
+
+  if (!IsValid(this->GetWorld())) {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT("CesiumCustomGlobeAnchorComponent %s does not have a valid world"),
         *this->GetOwner()->GetName());
-    return FTransform();
+    return;
   }
 
   USceneComponent* AnchorOwnerRoot = AnchorOwner->GetRootComponent();
@@ -385,11 +403,11 @@ FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
           "The owner of UCesiumCustomGlobeAnchorComponent %s does not have a valid root component"
         ),
         *this->GetOwner()->GetName());
-    return FTransform();
+    return ;
   }
 
   if (!IsValid(ResolvedTileset)) {
-    return FTransform();
+    return;
   }
 
   const GeoTransforms& GeoTransforms =
@@ -464,5 +482,4 @@ FTransform UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
       this->TeleportWhenUpdatingTransform
         ? ETeleportType::TeleportPhysics
         : ETeleportType::None);
-  return ActorTransform;
 }
