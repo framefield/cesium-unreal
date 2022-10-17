@@ -20,7 +20,8 @@ class ACesium3DTileset;
  * Height relative to the ellipsoid.
  */
 UCLASS(ClassGroup = (Cesium), meta = (BlueprintSpawnableComponent))
-class CESIUMRUNTIME_API UCesiumCustomGlobeAnchorComponent : public UActorComponent {
+class CESIUMRUNTIME_API UCesiumCustomGlobeAnchorComponent
+    : public UActorComponent {
   GENERATED_BODY()
 
 private:
@@ -33,21 +34,21 @@ private:
    * Tileset from Blueprints or C++, use ResolvedTileset instead.
    */
   UPROPERTY(
-      EditAnywhere,
-      BlueprintReadWrite,
-      BlueprintGetter = GetTileset,
-      BlueprintSetter = SetTileset,
-      Category = "Cesium|Tileset",
-      Meta = (AllowPrivateAccess))
+    EditAnywhere,
+    BlueprintReadWrite,
+    BlueprintGetter = GetTileset,
+    BlueprintSetter = SetTileset,
+    Category = "Cesium|Tileset",
+    Meta = (AllowPrivateAccess))
   ACesium3DTileset* Tileset = nullptr;
 
   UPROPERTY(
-      EditAnywhere,
-      BlueprintReadWrite,
-      BlueprintGetter = GetTilesetTag,
-      BlueprintSetter = SetTilesetTag,
-      Category = "Cesium|Tileset",
-      Meta = (AllowPrivateAccess))
+    EditAnywhere,
+    BlueprintReadWrite,
+    BlueprintGetter = GetTilesetTag,
+    BlueprintSetter = SetTilesetTag,
+    Category = "Cesium|Tileset",
+    Meta = (AllowPrivateAccess))
   FName TilesetTag = FName("World");
 
   /**
@@ -60,10 +61,10 @@ private:
    * happens automatically when the component is registered.
    */
   UPROPERTY(
-      Transient,
-      BlueprintReadOnly,
-      Category = "Cesium",
-      Meta = (AllowPrivateAccess))
+    Transient,
+    BlueprintReadOnly,
+    Category = "Cesium",
+    Meta = (AllowPrivateAccess))
   ACesium3DTileset* ResolvedTileset = nullptr;
 
   /**
@@ -76,10 +77,10 @@ private:
    * happens automatically when the component is registered.
    */
   UPROPERTY(
-      Transient,
-      BlueprintReadOnly,
-      Category = "Cesium",
-      Meta = (AllowPrivateAccess))
+    Transient,
+    BlueprintReadOnly,
+    Category = "Cesium",
+    Meta = (AllowPrivateAccess))
   ACesiumGeoreference* ResolvedGeoreference = nullptr;
 
 public:
@@ -138,18 +139,18 @@ private:
    * The latitude in degrees of this component, in the range [-90, 90]
    */
   UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess, ClampMin = -90.0, ClampMax = 90.0))
+    EditAnywhere,
+    Category = "Cesium|Georeference",
+    Meta = (AllowPrivateAccess, ClampMin = -90.0, ClampMax = 90.0))
   double Latitude = 0.0;
 
   /**
    * The longitude in degrees of this component, in the range [-180, 180]
    */
   UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      meta = (AllowPrivateAccess, ClampMin = -180.0, ClampMax = 180.0))
+    EditAnywhere,
+    Category = "Cesium|Georeference",
+    meta = (AllowPrivateAccess, ClampMin = -180.0, ClampMax = 180.0))
   double Longitude = 0.0;
 
   /**
@@ -159,21 +160,21 @@ private:
    * the object is located.
    */
   UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
+    EditAnywhere,
+    Category = "Cesium|Georeference",
+    Meta = (AllowPrivateAccess))
   double Height = 0.0;
 
   UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
+    EditAnywhere,
+    Category = "Cesium|Georeference",
+    Meta = (AllowPrivateAccess))
   bool AdaptScale = false;
 
   UPROPERTY(
-      EditAnywhere,
-      Category = "Cesium|Georeference",
-      Meta = (AllowPrivateAccess))
+    EditAnywhere,
+    Category = "Cesium|Georeference",
+    Meta = (AllowPrivateAccess))
   bool AdaptOrientation = true;
 
 
@@ -286,9 +287,9 @@ private:
   void _updateActorTransform();
 
   void _onGlobeTransformChanged(
-    USceneComponent* InRootComponent,
-    EUpdateTransformFlags UpdateTransformFlags,
-    ETeleportType Teleport);
+      USceneComponent* InRootComponent,
+      EUpdateTransformFlags UpdateTransformFlags,
+      ETeleportType Teleport);
   void _unregisterTileset(ACesium3DTileset* pTileset);
   void _registerTileset(ACesium3DTileset* pTileset);
 };
