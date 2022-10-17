@@ -40,6 +40,10 @@ public:
   UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
   EBingMapsStyle MapStyle = EBingMapsStyle::Aerial;
 
+
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
+  FString Url = "";
+
 protected:
   virtual std::unique_ptr<Cesium3DTilesSelection::RasterOverlay> CreateOverlay(
       const Cesium3DTilesSelection::RasterOverlayOptions& options = {})
