@@ -164,6 +164,19 @@ private:
       Meta = (AllowPrivateAccess))
   double Height = 0.0;
 
+  UPROPERTY(
+      EditAnywhere,
+      Category = "Cesium|Georeference",
+      Meta = (AllowPrivateAccess))
+  bool AdaptScale = false;
+
+  UPROPERTY(
+      EditAnywhere,
+      Category = "Cesium|Georeference",
+      Meta = (AllowPrivateAccess))
+  bool AdaptOrientation = true;
+
+
   UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cesium|Georeference")
   void PrintDebug() const;
 
