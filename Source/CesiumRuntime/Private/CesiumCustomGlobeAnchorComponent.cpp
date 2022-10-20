@@ -313,7 +313,11 @@ void UCesiumCustomGlobeAnchorComponent::PostEditChangeProperty(
       PropertyName ==
       GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Latitude) ||
       PropertyName ==
-      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Height)) {
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, Height)||
+      PropertyName ==
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, AdaptOrientation)||
+      PropertyName ==
+      GET_MEMBER_NAME_CHECKED(UCesiumCustomGlobeAnchorComponent, AdaptScale)) {
     this->_updateActorTransform();
   } else if (
     PropertyName ==
@@ -417,6 +421,15 @@ void UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
   if (IsValid(this->ResolvedTileset)) {
     TilesetTransform = VecMath::createMatrix4D(
         this->ResolvedTileset->GetTransform().ToMatrixWithScale());
+
+    if (this->ResolvedTileset->GlobalScale != 1.0) {
+      TilesetTransform = glm::scale(TilesetTransform,
+        glm::dvec3(
+          this->ResolvedTileset->GlobalScale,
+          this->ResolvedTileset->GlobalScale,
+          this->ResolvedTileset->GlobalScale)
+          );
+    }
   }
 
   // apply lon/lat transform
@@ -437,37 +450,44 @@ void UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
   ActorToUnreal = TilesetTransform * ActorToUnreal;
 
 
-  const auto& Center =  ActorToUnreal * glm::dvec4(0,0, 0, 1);
-  const auto& UpECEF = this->ResolvedGeoreference->
+
+  FTransform ActorTransform = FTransform(VecMath::createMatrix(ActorToUnreal));
+
+  if (!AdaptScale) {
+    ActorTransform.SetScale3D(FVector3d::One());
+  }
+
+  if (AdaptOrientation) {
+    const auto& Center =  ActorToUnreal * glm::dvec4(0,0, 0, 1);
+    const auto& UpECEF = this->ResolvedGeoreference->
+                             TransformLongitudeLatitudeHeightToEcef(
+                                 glm::dvec3(
+                                     this->Longitude,
+                                     this->Latitude,
+                                     this->Height - 100));
+    AbsoluteUnrealToECEF[3] = glm::dvec4(UpECEF.x, UpECEF.y, UpECEF.z, 1.0);
+    glm::dmat4 UpToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
+    UpToUnreal = TilesetTransform * UpToUnreal;
+
+    const auto& ForwardECEF = this->ResolvedGeoreference->
                            TransformLongitudeLatitudeHeightToEcef(
                                glm::dvec3(
                                    this->Longitude,
-                                   this->Latitude,
-                                   this->Height - 100));
-  AbsoluteUnrealToECEF[3] = glm::dvec4(UpECEF.x, UpECEF.y, UpECEF.z, 1.0);
-  glm::dmat4 UpToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
-  UpToUnreal = TilesetTransform * UpToUnreal;
-
-  const auto& ForwardECEF = this->ResolvedGeoreference->
-                         TransformLongitudeLatitudeHeightToEcef(
-                             glm::dvec3(
-                                 this->Longitude,
-                                 fabs(this->Latitude - 0.001),
-                                 this->Height));
-  AbsoluteUnrealToECEF[3] = glm::dvec4(ForwardECEF.x, ForwardECEF.y, ForwardECEF.z, 1.0);
-  glm::dmat4 ForwardToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
-  ForwardToUnreal = TilesetTransform * ForwardToUnreal;
+                                   fabs(this->Latitude - 0.001),
+                                   this->Height));
+    AbsoluteUnrealToECEF[3] = glm::dvec4(ForwardECEF.x, ForwardECEF.y, ForwardECEF.z, 1.0);
+    glm::dmat4 ForwardToUnreal = ECEFToAbsoluteUnreal * AbsoluteUnrealToECEF;
+    ForwardToUnreal = TilesetTransform * ForwardToUnreal;
 
 
-  const auto& UpCenter =  UpToUnreal * glm::dvec4(0,0, 0, 1);
-  const auto& ForwardCenter =  ForwardToUnreal * glm::dvec4(0,0, 0, 1);
-  const auto& Up = Center - UpCenter;
-  const auto& Forward = Center - ForwardCenter;
+    const auto& UpCenter =  UpToUnreal * glm::dvec4(0,0, 0, 1);
+    const auto& ForwardCenter =  ForwardToUnreal * glm::dvec4(0,0, 0, 1);
+    const auto& Up = Center - UpCenter;
+    const auto& Forward = Center - ForwardCenter;
 
-  const auto& Rotation = FRotationMatrix::MakeFromZY(  FVector3d(Up.x, Up.y, Up.z), FVector3d(Forward.x, Forward.y, Forward.z)).ToQuat();
-
-  FTransform ActorTransform = FTransform(VecMath::createMatrix(ActorToUnreal));
-  ActorTransform.SetRotation(Rotation);
+    const auto& Rotation = FRotationMatrix::MakeFromZY(  FVector3d(Up.x, Up.y, Up.z), FVector3d(Forward.x, Forward.y, Forward.z)).ToQuat();
+    ActorTransform.SetRotation(Rotation);
+  }
 
 #if WITH_EDITOR
   // In the Editor, mark the root component modified so Undo works properly.
