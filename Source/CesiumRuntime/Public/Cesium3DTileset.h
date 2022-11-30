@@ -593,11 +593,23 @@ public:
   UPROPERTY(
     EditAnywhere,
     BlueprintReadWrite,
-    Category = "Rendering")
+    Category = "Cesium|Tile Culling|Experimental")
   bool EvaluateCustomTileCulling = false;
 
-  UFUNCTION(BlueprintImplementableEvent, Category = "Rendering")
-  bool CustomIsTileCulled(const FVector& Center, const FVector& Extents);
+  UFUNCTION(BlueprintImplementableEvent, Category = "Cesium|Tile Culling|Experimental")
+  bool CustomIsTileCulled(const FVector& Center, const FVector& Extent);
+
+  UPROPERTY(
+    EditAnywhere,
+    BlueprintReadWrite,
+    Category = "Cesium|Tile Culling|Experimental")
+  bool EvaluateTileCullingIntersection = false;
+
+  UPROPERTY(
+    EditAnywhere,
+    BlueprintReadWrite,
+    Category = "Cesium|Tile Culling|Experimental")
+  FBox TileCullingIntersectionBox;
 
   UPROPERTY(
       EditAnywhere,
