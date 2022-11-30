@@ -416,6 +416,10 @@ void UCesiumCustomGlobeAnchorComponent::_updateActorTransform() {
     return;
   }
 
+  if (!IsValid(this->ResolvedGeoreference)) {
+    return;
+  }
+
   const GeoTransforms& GeoTransforms =
       this->ResolveGeoreference()->GetGeoTransforms();
 
