@@ -61,6 +61,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/trigonometric.hpp>
 #include <memory>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <spdlog/spdlog.h>
 
 FCesium3DTilesetLoadFailure OnCesium3DTilesetLoadFailure{};
@@ -1969,9 +1970,11 @@ void ACesium3DTileset::Tick(float DeltaTime) {
           ? this->_pTileset->updateViewOffline(frustums)
           : this->_pTileset->updateView(frustums, DeltaTime);
 
-
-  if (EvaluateCustomTileCulling) {
+  if (EvaluateCustomTileCulling || EvaluateTileCullingIntersection) {
     std::vector<Cesium3DTilesSelection::Tile*> ChangedEntries;
+
+    const auto& TileBaseTransform = FTransform(
+        VecMath::createMatrix(baseTransform));
 
     for (const auto Tile : result.tilesToRenderThisFrame) {
       if (Tile != nullptr) {
@@ -1979,23 +1982,43 @@ void ACesium3DTileset::Tick(float DeltaTime) {
             Cesium3DTilesSelection::getBoundingRegionFromBoundingVolume(
                 Tile->getBoundingVolume());
 
-        const auto& CesiumCenter = TileBounds->getBoundingBox().getCenter()  * GlobalScale;
-        const auto& CesiumExtents = TileBounds->getBoundingBox().getLengths()  * GlobalScale;
-        const auto& GlmCenter = (baseTransform * glm::dvec4(
-                                     CesiumCenter.x,
-                                     CesiumCenter.y,
-                                     CesiumCenter.z,
-                                     1.0));
-        const auto& GlmExtents = (baseTransform * glm::dvec4(
-                             CesiumExtents.x,
-                             CesiumExtents.y,
-                             CesiumExtents.z,
-                             1.0));
-        const FVector Center(GlmCenter.x, GlmCenter.y, GlmCenter.z);
-        const FVector Extents(GlmExtents.x, GlmExtents.y, GlmExtents.z);
+        const auto& UnrealTileBounds = std::visit(
+            CalcBoundsOperation{TileBaseTransform, glm::dmat4(1),
+                                this->GlobalScale},
+            Tile->getBoundingVolume());
 
-        const bool IsCulled = this->CustomIsTileCulled(Center, Extents);
-        // DrawDebugPoint(this->GetWorld(), Center, 20, IsCulled ? FColor::Red : FColor::Cyan, false, -1, 10);
+        bool IsCulled = false;
+        if (EvaluateCustomTileCulling) {
+          IsCulled = this->CustomIsTileCulled(
+              UnrealTileBounds.Origin,
+              UnrealTileBounds.BoxExtent);
+        } else if (EvaluateTileCullingIntersection) {
+          IsCulled = !this->TileCullingIntersectionBox.Intersect(
+              UnrealTileBounds.GetBox());
+        }
+
+        if constexpr (false) {
+          DrawDebugBox(
+              this->GetWorld(),
+              TileCullingIntersectionBox.GetCenter(),
+              TileCullingIntersectionBox.GetExtent(),
+              FColor::Cyan,
+              false,
+              0,
+              1,
+              .25);
+
+          DrawDebugBox(
+              this->GetWorld(),
+              UnrealTileBounds.Origin,
+              UnrealTileBounds.BoxExtent,
+              IsCulled ? FColor::Red : FColor::Green,
+              false,
+              0,
+              1,
+              .5);
+        }
+
         if (!IsCulled) {
           ChangedEntries.push_back(Tile);
         }
