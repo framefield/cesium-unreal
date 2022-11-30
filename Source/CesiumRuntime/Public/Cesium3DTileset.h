@@ -624,6 +624,15 @@ public:
 
 
   UPROPERTY(
+    EditAnywhere,
+    BlueprintReadWrite,
+    Category = "Rendering")
+  bool EvaluateCustomTileCulling = false;
+
+  UFUNCTION(BlueprintImplementableEvent, Category = "Rendering")
+  bool CustomIsTileCulled(const FVector& Center, const FVector& Extents);
+
+  UPROPERTY(
       EditAnywhere,
       BlueprintReadWrite,
       BlueprintGetter = GetVisible,
@@ -1051,7 +1060,7 @@ public:
   void UpdateTransformFromCesium();
 
 private:
-  void hideAllTiles();
+  void HideAllTiles();
 
   /**
    * Writes the values of all properties of this actor into the
