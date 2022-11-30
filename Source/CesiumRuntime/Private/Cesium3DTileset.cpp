@@ -1,6 +1,8 @@
 // Copyright 2020-2021 CesiumGS, Inc. and Contributors
 
 #include "Cesium3DTileset.h"
+
+#include "CalcBounds.h"
 #include "Async/Async.h"
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
@@ -61,6 +63,7 @@
 #include "StereoRendering.h"
 #include "UnrealAssetAccessor.h"
 #include "UnrealTaskProcessor.h"
+#include "VecMath.h"
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/trigonometric.hpp>
@@ -298,7 +301,7 @@ void ACesium3DTileset::SetVisible(bool bVisible) {
   if (this->Visible != bVisible) {
     this->Visible = bVisible;
     if (!Visible) {
-      hideAllTiles();
+      HideAllTiles();
     }
   }
 }
@@ -1877,7 +1880,7 @@ void ACesium3DTileset::Tick(float DeltaTime) {
   if (!this->Visible) {
     if (_wasVisible) {
       _wasVisible = false;
-      hideAllTiles();
+      HideAllTiles();
     }
     return;
   }
@@ -1925,10 +1928,47 @@ void ACesium3DTileset::Tick(float DeltaTime) {
         CreateViewStateFromViewParameters(camera, unrealWorldToTileset, GlobalScale));
   }
 
-  const Cesium3DTilesSelection::ViewUpdateResult& result =
+  Cesium3DTilesSelection::ViewUpdateResult result =
       this->_captureMovieMode
           ? this->_pTileset->updateViewOffline(frustums)
           : this->_pTileset->updateView(frustums, DeltaTime);
+
+
+  if (EvaluateCustomTileCulling) {
+    std::vector<Cesium3DTilesSelection::Tile*> ChangedEntries;
+
+    for (const auto Tile : result.tilesToRenderThisFrame) {
+      if (Tile != nullptr) {
+        const auto TileBounds =
+            Cesium3DTilesSelection::getBoundingRegionFromBoundingVolume(
+                Tile->getBoundingVolume());
+
+        const auto& CesiumCenter = TileBounds->getBoundingBox().getCenter()  * GlobalScale;
+        const auto& CesiumExtents = TileBounds->getBoundingBox().getLengths()  * GlobalScale;
+        const auto& GlmCenter = (baseTransform * glm::dvec4(
+                                     CesiumCenter.x,
+                                     CesiumCenter.y,
+                                     CesiumCenter.z,
+                                     1.0));
+        const auto& GlmExtents = (baseTransform * glm::dvec4(
+                             CesiumExtents.x,
+                             CesiumExtents.y,
+                             CesiumExtents.z,
+                             1.0));
+        const FVector Center(GlmCenter.x, GlmCenter.y, GlmCenter.z);
+        const FVector Extents(GlmExtents.x, GlmExtents.y, GlmExtents.z);
+
+        const bool IsCulled = this->CustomIsTileCulled(Center, Extents);
+        // DrawDebugPoint(this->GetWorld(), Center, 20, IsCulled ? FColor::Red : FColor::Cyan, false, -1, 10);
+        if (!IsCulled) {
+          ChangedEntries.push_back(Tile);
+        }
+      }
+
+      result.tilesToRenderThisFrame = ChangedEntries;
+    }
+  }
+
   updateLastViewUpdateResultState(result);
   this->UpdateLoadStatus();
 
@@ -1961,10 +2001,18 @@ void ACesium3DTileset::Tick(float DeltaTime) {
   }
 }
 
-void ACesium3DTileset::hideAllTiles() {
+void ACesium3DTileset::HideAllTiles() {
+  if (!IsValid(GetWorld())) {
+    return;
+  }
+
   std::unordered_set<Cesium3DTilesSelection::Tile*> AllTilesSet;
-  const auto Tileset = GetTileset();
-  Tileset->forEachLoadedTile([&AllTilesSet] (Cesium3DTilesSelection::Tile& tile) { AllTilesSet.insert(&tile); } );
+  const auto TileSet = GetTileset();
+  if (TileSet == nullptr) {
+    return;
+  }
+
+  TileSet->forEachLoadedTile([&AllTilesSet] (Cesium3DTilesSelection::Tile& Tile) { AllTilesSet.insert(&Tile); } );
 
   removeCollisionForTiles(AllTilesSet);
   std::vector<Cesium3DTilesSelection::Tile*> AllTilesVector(AllTilesSet.begin(), AllTilesSet.end());
@@ -2049,7 +2097,7 @@ void ACesium3DTileset::PostEditChangeProperty(
   } else if (
       PropNameAsString == TEXT("Visible")) {
     if (!Visible) {
-      hideAllTiles();
+      HideAllTiles();
     }
   } else if (
       PropName ==
