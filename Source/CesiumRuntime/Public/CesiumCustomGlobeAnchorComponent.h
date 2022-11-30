@@ -61,6 +61,7 @@ private:
    * happens automatically when the component is registered.
    */
   UPROPERTY(
+    VisibleAnywhere,
     Transient,
     BlueprintReadOnly,
     Category = "Cesium",
@@ -77,6 +78,7 @@ private:
    * happens automatically when the component is registered.
    */
   UPROPERTY(
+    VisibleAnywhere,
     Transient,
     BlueprintReadOnly,
     Category = "Cesium",
