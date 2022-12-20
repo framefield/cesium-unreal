@@ -1865,7 +1865,7 @@ void ACesium3DTileset::showTilesToRender(
 
     {
       TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::SetCollisionEnabled)
-      Gltf->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+      Gltf->SetCollisionEnabled(this->CreatePhysicsMeshes ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
     }
   }
 }
