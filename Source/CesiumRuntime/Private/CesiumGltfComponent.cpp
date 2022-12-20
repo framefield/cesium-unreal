@@ -1823,6 +1823,9 @@ static void loadPrimitiveGameThreadPart(
   FName meshName = createSafeName(loadResult.name, "");
   UCesiumGltfPrimitiveComponent* pMesh =
       NewObject<UCesiumGltfPrimitiveComponent>(pGltf, meshName);
+  pMesh->bAlwaysCreatePhysicsState = false;
+  pMesh->BodyInstance.SetCollisionProfileName(EName::None);
+  pMesh->BodyInstance.SetCollisionEnabled(ECollisionEnabled::NoCollision);
   pMesh->overlayTextureCoordinateIDToUVIndex =
       loadResult.overlayTextureCoordinateIDToUVIndex;
   pMesh->textureCoordinateMap = std::move(loadResult.textureCoordinateMap);

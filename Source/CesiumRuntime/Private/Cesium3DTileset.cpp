@@ -1828,7 +1828,7 @@ void ACesium3DTileset::showTilesToRender(
       Gltf->SetVisibility(true, true);
     }
 
-    Gltf->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Gltf->SetCollisionEnabled(this->CreatePhysicsMeshes ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
   }
 }
 
