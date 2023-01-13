@@ -10,6 +10,7 @@
 #include "Cesium3DTilesSelection/BoundingVolume.h"
 #include "Cesium3DTilesSelection/CreditSystem.h"
 #include "Cesium3DTilesSelection/IPrepareRendererResources.h"
+#include "Cesium3DTilesSelection/Tileset.h"
 #include "Cesium3DTilesSelection/TilesetLoadFailureDetails.h"
 #include "Cesium3DTilesSelection/TilesetOptions.h"
 #include "Cesium3DTilesetLoadFailureDetails.h"
@@ -1033,7 +1034,7 @@ void ACesium3DTileset::LoadTileset() {
   switch (this->TilesetSource) {
   case ETilesetSource::FromUrl:
     UE_LOG(LogCesium, Log, TEXT("Loading tileset from URL %s"), *this->Url);
-    this->_pTileset = MakeUnique<Cesium3DTilesSelection::Tileset>(
+    this->_pTileset = MakePimpl<Cesium3DTilesSelection::Tileset>(
         externals,
         TCHAR_TO_UTF8(*this->Url),
         options);
@@ -1049,14 +1050,14 @@ void ACesium3DTileset::LoadTileset() {
             ? GetDefault<UCesiumRuntimeSettings>()->DefaultIonAccessToken
             : this->IonAccessToken;
     if (!IonAssetEndpointUrl.IsEmpty()) {
-      this->_pTileset = MakeUnique<Cesium3DTilesSelection::Tileset>(
+      this->_pTileset = MakePimpl<Cesium3DTilesSelection::Tileset>(
           externals,
           static_cast<uint32_t>(this->IonAssetID),
           TCHAR_TO_UTF8(*token),
           options,
           TCHAR_TO_UTF8(*IonAssetEndpointUrl));
     } else {
-      this->_pTileset = MakeUnique<Cesium3DTilesSelection::Tileset>(
+      this->_pTileset = MakePimpl<Cesium3DTilesSelection::Tileset>(
           externals,
           static_cast<uint32_t>(this->IonAssetID),
           TCHAR_TO_UTF8(*token),

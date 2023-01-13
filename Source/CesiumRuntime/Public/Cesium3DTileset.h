@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Cesium3DTilesSelection/Tileset.h"
 #include "Cesium3DTilesSelection/ViewState.h"
 #include "Cesium3DTilesSelection/ViewUpdateResult.h"
 #include "Cesium3DTilesetLoadFailureDetails.h"
@@ -1127,7 +1126,7 @@ private:
 #endif
 
 private:
-  TUniquePtr<Cesium3DTilesSelection::Tileset> _pTileset;
+  TPimplPtr<Cesium3DTilesSelection::Tileset> _pTileset;
 
   FMetadataDescription _encodedMetadataDescription;
 
