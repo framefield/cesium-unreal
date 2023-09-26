@@ -8,7 +8,13 @@
 #include "UObject/Class.h"
 #include "UObject/ConstructorHelpers.h"
 #include <memory>
+#include <string>
 #include <unordered_map>
+
+#if WITH_EDITOR
+#include "IAssetViewport.h"
+#include "UnrealEdMisc.h"
+#endif
 
 #include "CesiumCreditSystem.generated.h"
 
@@ -31,10 +37,14 @@ public:
 
   ACesiumCreditSystem();
 
-  void BeginPlay() override;
+  virtual void BeginPlay() override;
+  virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+  virtual void OnConstruction(const FTransform& Transform) override;
+  virtual void BeginDestroy() override;
 
   UPROPERTY(EditDefaultsOnly, Category = "Cesium")
-  TSubclassOf<UUserWidget> CreditsWidgetClass;
+  TSubclassOf<class UScreenCreditsWidget> CreditsWidgetClass;
 
   /**
    * Whether the credit string has changed since last frame.
@@ -42,7 +52,7 @@ public:
   UPROPERTY(BlueprintReadOnly, Category = "Cesium")
   bool CreditsUpdated = false;
 
-  UPROPERTY(BlueprintReadOnly, Category = "Cesium")
+  UPROPERTY(BlueprintReadOnly, Transient, Category = "Cesium")
   class UScreenCreditsWidget* CreditsWidget;
 
   // Called every frame
@@ -54,8 +64,18 @@ public:
     return _pCreditSystem;
   }
 
+  void updateCreditsViewport(bool recreateWidget);
+  void removeCreditsFromViewports();
+
+#if WITH_EDITOR
+  void OnRedrawLevelEditingViewports(bool);
+  void OnPreBeginPIE(bool bIsSimulating);
+  void OnEndPIE();
+  void OnCleanseEditor();
+#endif
+
 private:
-  static UClass* CesiumCreditSystemBP;
+  static UObject* CesiumCreditSystemBP;
 
   /**
    * A tag that is assigned to Credit Systems when they are created
@@ -70,4 +90,8 @@ private:
 
   FString ConvertHtmlToRtf(std::string html);
   std::unordered_map<std::string, FString> _htmlToRtf;
+
+#if WITH_EDITOR
+  TWeakPtr<IAssetViewport> _pLastEditorViewport;
+#endif
 };

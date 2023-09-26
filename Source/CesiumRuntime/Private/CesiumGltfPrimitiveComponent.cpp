@@ -3,7 +3,6 @@
 #include "CesiumGltfPrimitiveComponent.h"
 #include "CalcBounds.h"
 #include "CesiumLifetime.h"
-#include "CesiumRuntime.h"
 #include "CesiumMaterialUserData.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture.h"
@@ -13,23 +12,17 @@
 #include <variant>
 
 // Sets default values for this component's properties
-UCesiumGltfPrimitiveComponent::UCesiumGltfPrimitiveComponent(): GlobalScale(1) {
-  // Set this component to be initialized when the game starts, and to be ticked
-  // every frame.  You can turn these features off to improve performance if you
-  // don't need them.
+UCesiumGltfPrimitiveComponent::UCesiumGltfPrimitiveComponent() {
   PrimaryComponentTick.bCanEverTick = false;
   pModel = nullptr;
   pMeshPrimitive = nullptr;
+  pTilesetActor = nullptr;
 }
 
 UCesiumGltfPrimitiveComponent::~UCesiumGltfPrimitiveComponent() {}
 
 void UCesiumGltfPrimitiveComponent::UpdateTransformFromCesium(
     const glm::dmat4& CesiumToUnrealTransform) {
-  this->SetUsingAbsoluteLocation(true);
-  this->SetUsingAbsoluteRotation(true);
-  this->SetUsingAbsoluteScale(true);
-
   const FTransform transform = FTransform(VecMath::createMatrix(
       CesiumToUnrealTransform * this->HighPrecisionNodeTransform));
 
@@ -50,7 +43,7 @@ void UCesiumGltfPrimitiveComponent::UpdateTransformFromCesium(
     // too, so in a relative sense the object isn't actually moving. This isn't
     // a perfect assumption, of course.
     this->SetRelativeTransform_Direct(transform);
-    this->SetComponentToWorld(transform);
+    this->UpdateComponentToWorld();
     this->MarkRenderTransformDirty();
     this->SendPhysicsTransform(ETeleportType::ResetPhysics);
   }
@@ -157,7 +150,6 @@ void UCesiumGltfPrimitiveComponent::BeginDestroy() {
   Super::BeginDestroy();
 }
 
-
 FBoxSphereBounds UCesiumGltfPrimitiveComponent::CalcBounds(
     const FTransform& LocalToWorld) const {
   if (!this->boundingVolume) {
@@ -165,6 +157,6 @@ FBoxSphereBounds UCesiumGltfPrimitiveComponent::CalcBounds(
   }
 
   return std::visit(
-      CalcBoundsOperation{LocalToWorld, this->HighPrecisionNodeTransform, this->GlobalScale},
+      CalcBoundsOperation{LocalToWorld, this->HighPrecisionNodeTransform},
       *this->boundingVolume);
 }

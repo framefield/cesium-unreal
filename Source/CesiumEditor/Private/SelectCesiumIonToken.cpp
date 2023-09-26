@@ -12,6 +12,7 @@
 #include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/App.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SButton.h"
@@ -392,7 +393,7 @@ void SelectCesiumIonToken::createRadioButton(
 }
 
 FReply SelectCesiumIonToken::UseOrCreate() {
-  if (!this->_promise) {
+  if (!this->_promise || !this->_future) {
     return FReply::Handled();
   }
 
@@ -496,6 +497,11 @@ FReply SelectCesiumIonToken::UseOrCreate() {
 
         pPanel->RequestDestroyWindow();
       });
+
+  while (!this->_future->isReady()) {
+    FCesiumEditorModule::ion().getAssetAccessor()->tick();
+    FCesiumEditorModule::ion().getAsyncSystem().dispatchMainThreadTasks();
+  }
 
   return FReply::Handled();
 }

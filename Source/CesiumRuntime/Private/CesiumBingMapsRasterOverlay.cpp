@@ -37,13 +37,9 @@ UCesiumBingMapsRasterOverlay::CreateOverlay(
     break;
   }
 
-  const auto& EndpointUrl = this->Url.Len() > 0 ?
-    TCHAR_TO_UTF8(*this->Url) :
-    "https://dev.virtualearth.net";
-
   return std::make_unique<Cesium3DTilesSelection::BingMapsRasterOverlay>(
       TCHAR_TO_UTF8(*this->MaterialLayerKey),
-      EndpointUrl,
+      "https://dev.virtualearth.net",
       TCHAR_TO_UTF8(*this->BingMapsKey),
       mapStyle,
       "",

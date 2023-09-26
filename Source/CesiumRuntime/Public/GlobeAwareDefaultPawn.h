@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CesiumGeospatial/Ellipsoid.h"
 #include "CoreMinimal.h"
 #include "GameFramework/DefaultPawn.h"
 #include <glm/mat3x3.hpp>
@@ -78,7 +79,7 @@ public:
    * 1 range on both axes. The {@see FlyToMaximumAltitudeCurve} dictates the
    * actual max altitude at each point along the curve.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium")
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
   UCurveFloat* FlyToAltitudeProfileCurve;
 
   /**
@@ -86,7 +87,7 @@ public:
    * curves. This allows us to accelerate and deaccelerate as wanted throughout
    * the curve.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium")
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
   UCurveFloat* FlyToProgressCurve;
 
   /**
@@ -94,21 +95,29 @@ public:
    * This can be used in conjunction with the {@see FlyToAltitudeProfileCurve}
    * to allow the pawn to take some altitude during the flight.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium")
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
   UCurveFloat* FlyToMaximumAltitudeCurve;
 
   /**
    * The length in seconds that the flight should last.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium", meta = (ClampMin = 0.0))
-  double FlyToDuration = 5.0;
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintReadWrite,
+      Category = "Cesium",
+      meta = (ClampMin = 0.0))
+  float FlyToDuration = 5.0f;
 
   /**
    * The granularity in degrees with which keypoints should be generated for
    * the flight interpolation.
    */
-  UPROPERTY(EditAnywhere, Category = "Cesium", meta = (ClampMin = 0.0))
-  double FlyToGranularityDegrees = 0.01;
+  UPROPERTY(
+      meta =
+          (DeprecatedProperty,
+           DeprecationMessage =
+               "FlyToGranularityDegrees has been deprecated. This property no longer needs to be set."))
+  float FlyToGranularityDegrees_DEPRECATED = 0.01f;
 
   /**
    * A delegate that will be called whenever the pawn finishes flying
@@ -125,12 +134,20 @@ public:
   FInterruptedFlight OnFlightInterrupt;
 
   /**
+   * Gets the transformation from globe's reference frame to the Unreal world
+   * (relative to the floating origin). This is equivalent to calling
+   * GetActorTransform on this pawn's attach parent, if it has one. If this pawn
+   * does not have an attach parent, an identity transformation is returned.
+   */
+  UFUNCTION(BlueprintPure, Category = "Cesium")
+  const FTransform& GetGlobeToUnrealWorldTransform() const;
+
+  /**
    * Begin a smooth camera flight to the given Earth-Centered, Earth-Fixed
    * (ECEF) destination such that the camera ends at the specified yaw and
    * pitch. The characteristics of the flight can be configured with
    * {@see FlyToAltitudeProfileCurve}, {@see FlyToProgressCurve},
-   * {@see FlyToMaximumAltitudeCurve}, {@see FlyToDuration}, and
-   * {@see FlyToGranularityDegrees}.
+   * {@see FlyToMaximumAltitudeCurve}, and {@see FlyToDuration}
    */
   void FlyToLocationECEF(
       const glm::dvec3& ECEFDestination,
@@ -143,8 +160,7 @@ public:
    * (ECEF) destination such that the camera ends at the specified yaw and
    * pitch. The characteristics of the flight can be configured with
    * {@see FlyToAltitudeProfileCurve}, {@see FlyToProgressCurve},
-   * {@see FlyToMaximumAltitudeCurve}, {@see FlyToDuration}, and
-   * {@see FlyToGranularityDegrees}.
+   * {@see FlyToMaximumAltitudeCurve}, and {@see FlyToDuration}
    */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
   void FlyToLocationECEF(
@@ -159,7 +175,7 @@ public:
    * ends at the given yaw and pitch. The characteristics of the flight can be
    * configured with {@see FlyToAltitudeProfileCurve},
    * {@see FlyToProgressCurve}, {@see FlyToMaximumAltitudeCurve},
-   * {@see FlyToDuration}, and {@see FlyToGranularityDegrees}.
+   * and {@see FlyToDuration}
    */
   void FlyToLocationLongitudeLatitudeHeight(
       const glm::dvec3& LongitudeLatitudeHeightDestination,
@@ -220,6 +236,7 @@ private:
   void _moveAlongViewAxis(EAxis::Type axis, double Val);
   void _moveAlongVector(const FVector& axis, double Val);
   void _interruptFlight();
+  void _interpolateFlightPosition(float percentage, glm::dvec3& out) const;
 
   /**
    * @brief Advance the camera flight based on the given time delta.
@@ -228,8 +245,7 @@ private:
    * is not valid, then this function will do nothing.
    *
    * The given delta will be added to the _currentFlyTime, and the position
-   * and orientation will be computed by interpolating the _keypoints
-   * and _flyToSourceRotation/_flyToDestinationRotation  based on this time.
+   * and orientation will be computed by interpolating based on this time.
    *
    * The position will be set as the SetECEFCameraLocation, and the
    * orientation will be assigned GetController()->SetControlRotation.
@@ -241,9 +257,20 @@ private:
   // helper variables for FlyToLocation
   bool _bFlyingToLocation = false;
   bool _bCanInterruptFlight = false;
-  double _currentFlyTime = 0.0;
+  float _currentFlyTime = 0.0f;
+
+  double _flyToSourceAltitude = 0.0;
+  double _flyToDestinationAltitude = 0.0;
+  double _flyToMaxAltitude = 0.0;
+
+  double _flyToTotalAngle = 0.0;
+  glm::dvec3 _flyToSourceDirection;
+  glm::dvec3 _flyToRotationAxis;
+
   FQuat _flyToSourceRotation;
   FQuat _flyToDestinationRotation;
+  glm::dvec3 _flyToECEFDestination;
 
-  std::vector<glm::dvec3> _keypoints;
+  const CesiumGeospatial::Ellipsoid& _ellipsoid =
+      CesiumGeospatial::Ellipsoid::WGS84;
 };

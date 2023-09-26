@@ -1,5 +1,166 @@
 # Change Log
 
+### ? - ?
+
+##### Breaking Changes :mega:
+
+- The old sub-level system, based on Unreal's old (and now deprecated) World Composition system, has been removed. Instead, create Level Instance Actors and attach the "Cesium Sub Level Component" to them to achieve similar functionality. Old levels will automatically be converted to the new system when they are loaded in the Editor.
+- `CesiumSunSky` now uses a default `TransmittanceMinLightElevationAngle` value on its `SkyAtmosphere` component of 90.0 degrees instead of -90.0 degrees. This will generally improve lighting when far from the CesiumGeoreference origin, but it is a breaking change because it may change the lighting conditions in existing levels, particularly at sunrise and sunset.
+- The `Mobility` property on `ACesium3DTileset` is now obsolete. Instead, use the normal mechanism of setting the root component's mobility.
+- Removed many methods that from the C++ interface of `ACesiumGeoreference` that used `glm` vector types. Use the versions that work with Unreal types instead.
+- The `ComputeEastSouthUpToUnreal` function on `ACesiumGeoreference` has been renamed to `ComputeEastSouthUpToUnrealTransformation` and now returns a matrix that includes the translation component of the transformation. Previously it only included the rotation component.
+
+##### Additions :tada:
+
+- The "Place Georeference Origin Here" action on CesiumGeoreference is now undoable.
+- Cesium Actors now have the "Is Spatially Loaded" flag disabled by default. When using World Partition, this is essential for some, such as `CesiumGeoreference`.
+- The `CesiumCameraManager` instance to use with a `Cesium3DTileset` can now be specified with a property on the tileset. In addition to offering more flexibility, this avoids the work of finding the camera manager in the level every frame.
+- Cesium Actors created with the Quick Add or Cesium ion panels are now created inside the active sub-level, if there is one.
+- Cesium objects in sub-levels can now explicitly reference `ACesiumGeoreference`, `ACesiumCreditSystem`, and `ACesiumCameraManager` instances in the Persistent Level.
+- `ACesiumGeoreference` can now act as a parent Actor. By adjusting the georeference's transformation, the entire globe can be located, rotated, and scaled within the Unreal Engine world.
+- Added `AtmosphereHeight`, `AerialPerspectiveViewDistanceScale`, `RayleighExponentialDistribution`, and `MieExponentialDistribution` properties to `ACesiumSunSky`. These have the same function as the properties of the same name on Unreal's built-in SkyAtmosphere component, except that they automatically respond to the scale of the globe.
+- Added `UCesiumWgs84Ellipsoid` Blueprint function library class.
+
+##### Fixes :wrench:
+
+- Fixed a bug in `ACesiumSunSky` that could cause an error when it was created inside a sub-level.
+- `ACesiumGeoreference`, `ACesiumCameraManager`, and `ACesiumCreditSystem` are now created in the Persistent Level, even if the object that triggered their automatic creation (such as `ACesium3DTileset`) exists in a sub-level. It is very rarely useful to have instances of these objects within a sub-level.
+- An instance of `ACesiumCreditSystem` in a sub-level will no longer cause overlapping and broken-looking credits. However, we still recommend deleting credit system instances from sub-levels.
+- `ACesiumCartographicPolygon` now operates on the parts of the tileset that are shown in the Editor viewport, even if it is used with a Cesium3DTileset with a non-identity transformation.
+- Fixed bug where older scenes that used Cesium UI created actors could have their `RF_Public` flag set. This could cause problems when converting an existing level to World Partition, or perhaps cause other subtle issues that we haven't realized yet.
+
+### v1.30.1 - 2023-09-03
+
+This release fixes an important bug by updating [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.27.0 to v0.27.1. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.30.0 - 2023-09-01
+
+This release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.26.0 to v0.27.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.29.0 - 2023-08-01
+
+##### Fixes :wrench:
+
+- Fixed a bug introduced in v1.28.0 that prevented point clouds from rendering with attenuation.
+- Fixed a bug where Google Photorealistic 3D Tiles would sometimes not render in Movie Render Queue.
+- Fixed a bug that caused `UnrealLightmass` to crash when attempting to build lighting containing static meshes created by a `Cesium3DTileset`.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.25.1 to v0.26.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.28.0 - 2023-07-03
+
+##### Breaking Changes :mega:
+
+- Removed the `GetGeoreferencedToEllipsoidCenteredTransform` and `GetEllipsoidCenteredToGeoreferencedTransform` methods from `GeoTransforms`. Because these were transformations between two right-handed coordinate systems, they are not of much use with Unreal's left-handed coordinate system.
+- Deprecated the `FlyToGranularityDegrees` property for `AGlobeAwareDefaultPawn`. Flight interpolation is now computed per-frame, so this property is no longer needed. Any code that refers to `FlyToGranularityDegrees` should be removed or changed to `FlyToGranularityDegrees_DEPRECATED` to still compile.
+
+##### Additions :tada:
+
+- Added the ability to set the CesiumGeoreference `Scale` via Blueprints.
+- Added `ACesiumCameraManager::RemoveCamera`. It is available via both Blueprints and C++. This complements the existing `ACesiumCameraManager::AddCamera`.
+
+##### Fixes :wrench:
+
+- Added a workaround for an apparent bug in Unreal Engine 5.1 that prevented collisions from working with Cesium3DTilesets.
+- Fixed a bug that could cause the `AGlobeAwareDefaultPawn` / `DynamicPawn`  to suddenly move to a very high height for one render frame just as it arrives at its destination during a flight.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.25.0 to v0.25.1. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.27.1 - 2023-06-19
+
+##### Fixes :wrench:
+
+- Fixed a shader compilation error introduced in v1.27.0 that prevented projects from opening in Unreal Engine 5.1 and 5.2.
+- Fixed a debug assertion `!IsGarbageCollecting()` that could occur within `ACesiumCreditSystem` when flying to different sublevels.
+
+### v1.27.0 - 2023-06-1
+
+##### Additions :tada:
+
+- Added support for Unreal Engine 5.2.
+- Added support for running Cesium for Unreal in the Unreal Editor in Linux under UE 5.2. Previous versions supported Linux only as a packaging target.
+- Added point cloud shading options to `Cesium3DTileset`, which allow point cloud tilesets to be rendered with attenuation based on geometric error.
+- `ACesium3DTileset` now emits a warning if the "Enable World Bounds Checks" option is enabled. That option can make the camera fly toward the origin unexpectedly.
+- Added new settings to the Cesium section of the Project Settings, allowing users to control how many requests to handle before pruning and also how many elements to keep in the cache after pruning.
+
+##### Fixes :wrench:
+
+- Fixed a bug introduced in v1.26.0 that caused an error when attempting to save a sub-level containing Cesium objects.
+- Removed degenerate triangles from the collision mesh created for 3D Tiles. This will avoid warnings and runtime pauses with some tilesets.
+- Fixed a bug in `CesiumGlTFFunction` that caused the glTF and 3D Tiles "Ambient Occlusion" value to be 0.0 (instead of the expected 1.0) when the model does not specify an explicit occlusion texture. This could cause some extremely dark shadows.
+- Fixed a bug that could cause a crash when using Cesium Actors with World Partitioning.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.24.0 to v0.25.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.26.0 - 2023-05-09
+
+##### Additions :tada:
+
+- Added a `Scale` property to `CesiumGeoreference`. This allows the entire globe to be scaled up or down within the Unreal world.
+- Tileset and raster overlay credits are now shown in Editor viewports.
+
+##### Fixes :wrench:
+
+- Fixed a bug in `ACesiumCartographicPolygon` where the standard base class `BeginPlay` implementation was not called.
+
+### v1.25.1 - 2023-05-02
+
+##### Fixes :wrench:
+
+- Fixed warnings about `bUseChaos` and `bCompilePhysX` being obsolete.
+
+### v1.25.0 - 2023-05-01
+
+Starting with this release, Cesium for Unreal requires Unreal Engine v5.0 or later.
+
+##### Fixes :wrench:
+
+- On-screen credits now only show on the screen, and not in the Data Attribution panel. Additionally, the Data Attribution panel no longer appears if there are no credits to display in it.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.23.0 to v0.24.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.24.0 - 2023-04-03
+
+This will be the _last_ release that supports Unreal Engine v4.27. Future versions will require Unreal Engine v5.0+.
+
+##### Additions :tada:
+
+- The `FlyToAltitudeProfileCurve`, `FlyToProgressCurve`, `FlyToMaximumAltitudeCurve`, `FlyToDuration`, and `FlyToGranularityDegrees` properties of `GlobeAwareDefaultPawn`  / `DynamicPawn` may now be read and written from Blueprints.
+- Added an option on `Cesium3DTileset` to ignore the `KHR_materials_unlit` extension entirely and use normal lighting and shadows.
+- Added `CreateNavCollision` property to `Cesium3DTileset`. When enabled, `CreateNavCollision` is called on the static meshes created for tiles.
+
+##### Fixes :wrench:
+
+- Fixed unexpected reflection on tilesets with `KHR_materials_unlit` extension when the sun is close to the horizon.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.22.0 to v0.23.0. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.23.0 - 2023-03-01
+
+##### Additions :tada:
+
+- Added support for rendering 3D Tiles point clouds (`pnts`).
+
+##### Fixes :wrench:
+
+- Fixed bug that caused a crash when changing the project default token with tilesets active in the level.
+- Vertex buffers created for 3D Tiles are now set to use full-precision UV coordinates, avoiding problems in particular with feature IDs.
+- Added some missing headers, to avoid compiler errors in non-unity builds.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.21.3 to v0.22.1. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
+### v1.22.0 - 2023-02-01
+
+##### Additions :tada:
+
+- Added support for the `KHR_materials_unlit` glTF extension. This is rendered in Unreal Engine by disabling shadows and making all normals point up (along the ellipsoid surface normal).
+
+##### Fixes :wrench:
+
+- Fixed a bug that caused raster overlays and other material features to not work for materials created or saved in Unreal Engine 5.1.
+
+In addition to the above, this release updates [cesium-native](https://github.com/CesiumGS/cesium-native) from v0.21.2 to v0.21.3. See the [changelog](https://github.com/CesiumGS/cesium-native/blob/main/CHANGES.md) for a complete list of changes in cesium-native.
+
 ### v1.21.0 - 2023-01-02
 
 ##### Fixes :wrench:

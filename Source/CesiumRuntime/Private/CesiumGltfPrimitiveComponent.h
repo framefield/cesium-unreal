@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Cesium3DTilesSelection/BoundingVolume.h"
+#include "Cesium3DTileset.h"
 #include "CesiumEncodedMetadataUtility.h"
 #include "CesiumGltf/MeshPrimitive.h"
 #include "CesiumGltf/Model.h"
@@ -28,6 +29,8 @@ public:
 
   CesiumEncodedMetadataUtility::EncodedMetadataPrimitive EncodedMetadata;
 
+  ACesium3DTileset* pTilesetActor;
+
   const CesiumGltf::Model* pModel;
 
   const CesiumGltf::MeshPrimitive* pMeshPrimitive;
@@ -36,7 +39,6 @@ public:
    * The double-precision transformation matrix for this glTF node.
    */
   glm::dmat4x4 HighPrecisionNodeTransform;
-  double GlobalScale;
 
   OverlayTextureCoordinateIDMap overlayTextureCoordinateIDToUVIndex;
   std::unordered_map<uint32_t, uint32_t> textureCoordinateMap;

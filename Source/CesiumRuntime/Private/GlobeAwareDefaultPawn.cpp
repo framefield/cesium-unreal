@@ -5,12 +5,12 @@
 #include "CesiumActors.h"
 #include "CesiumCustomVersion.h"
 #include "CesiumGeoreference.h"
-#include "CesiumGeospatial/Ellipsoid.h"
-#include "CesiumGeospatial/Transforms.h"
 #include "CesiumGlobeAnchorComponent.h"
 #include "CesiumRuntime.h"
 #include "CesiumTransforms.h"
 #include "CesiumUtility/Math.h"
+#include "CesiumWgs84Ellipsoid.h"
+#include "Curves/CurveFloat.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
@@ -25,6 +25,9 @@
 AGlobeAwareDefaultPawn::AGlobeAwareDefaultPawn() : ADefaultPawn() {
   PrimaryActorTick.bCanEverTick = true;
 
+#if WITH_EDITOR
+  this->SetIsSpatiallyLoaded(false);
+#endif
   this->GlobeAnchor =
       CreateDefaultSubobject<UCesiumGlobeAnchorComponent>(TEXT("GlobeAnchor"));
 }
@@ -38,24 +41,39 @@ void AGlobeAwareDefaultPawn::MoveForward(float Val) {
 }
 
 void AGlobeAwareDefaultPawn::MoveUp_World(float Val) {
-  if (Val == 0.0f || !IsValid(this->GlobeAnchor)) {
+  if (Val == 0.0f) {
     return;
   }
 
-  glm::dvec4 upEcef(
-      CesiumGeospatial::Ellipsoid::WGS84.geodeticSurfaceNormal(
-          VecMath::createVector3D(this->GlobeAnchor->GetECEF())),
-      0.0);
-  glm::dvec4 up = this->GlobeAnchor->ResolveGeoreference()
-                      ->GetGeoTransforms()
-                      .GetEllipsoidCenteredToAbsoluteUnrealWorldTransform() *
-                  upEcef;
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!IsValid(pGeoreference)) {
+    return;
+  }
 
-  this->_moveAlongVector(FVector(up.x, up.y, up.z), Val);
+  FVector upEcef = UCesiumWgs84Ellipsoid::GeodeticSurfaceNormal(
+      this->GlobeAnchor->GetECEF());
+  FVector up =
+      pGeoreference->TransformEarthCenteredEarthFixedDirectionToUnreal(upEcef);
+
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld();
+    }
+  }
+
+  this->_moveAlongVector(transform.TransformVector(up), Val);
 }
 
 FRotator AGlobeAwareDefaultPawn::GetViewRotation() const {
   if (!Controller) {
+    return this->GetActorRotation();
+  }
+
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!pGeoreference) {
     return this->GetActorRotation();
   }
 
@@ -69,16 +87,69 @@ FRotator AGlobeAwareDefaultPawn::GetViewRotation() const {
   // the right (clockwise).
   FRotator localRotation = Controller->GetControlRotation();
 
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld();
+    }
+  }
+
   // Transform the rotation in the ESU frame to the Unreal world frame.
+  FVector globePosition =
+      transform.InverseTransformPosition(this->GetPawnViewLocation());
   FMatrix esuAdjustmentMatrix =
-      this->GetGeoreference()->ComputeEastSouthUpToUnreal(
-          this->GetPawnViewLocation());
+      pGeoreference->ComputeEastSouthUpToUnrealTransformation(globePosition) *
+      transform.ToMatrixNoScale();
 
   return FRotator(esuAdjustmentMatrix.ToQuat() * localRotation.Quaternion());
 }
 
 FRotator AGlobeAwareDefaultPawn::GetBaseAimRotation() const {
   return this->GetViewRotation();
+}
+
+void AGlobeAwareDefaultPawn::_interpolateFlightPosition(
+    float percentage,
+    glm::dvec3& out) const {
+
+  // Rotate our normalized source direction, interpolating with time
+  glm::dvec3 rotatedDirection = glm::rotate(
+      _flyToSourceDirection,
+      percentage * _flyToTotalAngle,
+      _flyToRotationAxis);
+
+  // Map the result to a position on our reference ellipsoid
+  if (auto geodeticPosition =
+          this->_ellipsoid.scaleToGeodeticSurface(rotatedDirection)) {
+
+    // Calculate the geodetic up at this position
+    glm::dvec3 geodeticUp =
+        this->_ellipsoid.geodeticSurfaceNormal(*geodeticPosition);
+
+    // Add the altitude offset. Start with linear path between source and
+    // destination If we have a profile curve, use this as well
+    double altitudeOffset =
+        glm::mix(_flyToSourceAltitude, _flyToDestinationAltitude, percentage);
+    if (_flyToMaxAltitude != 0.0 && this->FlyToAltitudeProfileCurve) {
+      double curveOffset =
+          _flyToMaxAltitude *
+          this->FlyToAltitudeProfileCurve->GetFloatValue(percentage);
+      altitudeOffset += curveOffset;
+    }
+
+    out = *geodeticPosition + geodeticUp * altitudeOffset;
+  }
+}
+
+const FTransform&
+AGlobeAwareDefaultPawn::GetGlobeToUnrealWorldTransform() const {
+  AActor* pParent = this->GetAttachParentActor();
+  if (IsValid(pParent)) {
+    return pParent->GetActorTransform();
+  }
+  return FTransform::Identity;
 }
 
 void AGlobeAwareDefaultPawn::FlyToLocationECEF(
@@ -88,6 +159,23 @@ void AGlobeAwareDefaultPawn::FlyToLocationECEF(
     bool CanInterruptByMoving) {
 
   if (this->_bFlyingToLocation) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT("Cannot start a flight because one is already in progress."));
+    return;
+  }
+
+  if (!IsValid(this->Controller)) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT(
+            "Cannot start a flight because the pawn does not have a Controller. You probably need to \"possess\" it before attempting to initiate a flight."));
+    return;
+  }
+
+  if (!IsValid(this->GetGeoreference())) {
     return;
   }
 
@@ -100,20 +188,18 @@ void AGlobeAwareDefaultPawn::FlyToLocationECEF(
   this->_flyToSourceRotation = Controller->GetControlRotation().Quaternion();
   this->_flyToDestinationRotation =
       FRotator(PitchAtDestination, YawAtDestination, 0).Quaternion();
+  this->_flyToECEFDestination = ECEFDestination;
 
-  // Compute axis/Angle transform and initialize key points
+  // Compute axis/Angle transform
   glm::dquat flyQuat = glm::rotation(
       glm::normalize(ECEFSource),
       glm::normalize(ECEFDestination));
-  double flyTotalAngle = glm::angle(flyQuat);
-  glm::dvec3 flyRotationAxis = glm::axis(flyQuat);
-  int steps = glm::max(
-      int(flyTotalAngle / glm::radians(this->FlyToGranularityDegrees)) - 1,
-      0);
-  this->_keypoints.clear();
+  _flyToTotalAngle = glm::angle(flyQuat);
+  _flyToRotationAxis = glm::axis(flyQuat);
+
   this->_currentFlyTime = 0.0;
 
-  if (flyTotalAngle == 0.0 &&
+  if (_flyToTotalAngle == 0.0 &&
       this->_flyToSourceRotation == this->_flyToDestinationRotation) {
     return;
   }
@@ -128,58 +214,36 @@ void AGlobeAwareDefaultPawn::FlyToLocationECEF(
   //  point smoothly.
   //  - Add as flightProfile offset /-\ defined by a curve.
 
-  // Compute global radius at source and destination points
-  double sourceRadius = glm::length(ECEFSource);
-  glm::dvec3 sourceUpVector = ECEFSource;
+  // Compute actual altitude at source and destination points by getting their
+  // cartographic height
+  _flyToSourceAltitude = 0.0;
+  _flyToDestinationAltitude = 0.0;
 
-  // Compute actual altitude at source and destination points by scaling on
-  // ellipsoid.
-  double sourceAltitude = 0.0, destinationAltitude = 0.0;
-  const CesiumGeospatial::Ellipsoid& ellipsoid =
-      CesiumGeospatial::Ellipsoid::WGS84;
-  if (auto scaled = ellipsoid.scaleToGeodeticSurface(ECEFSource)) {
-    sourceAltitude = glm::length(ECEFSource - *scaled);
+  if (auto cartographicSource =
+          this->_ellipsoid.cartesianToCartographic(ECEFSource)) {
+    _flyToSourceAltitude = cartographicSource->height;
+
+    cartographicSource->height = 0;
+    glm::dvec3 zeroHeightSource =
+        this->_ellipsoid.cartographicToCartesian(*cartographicSource);
+
+    _flyToSourceDirection = glm::normalize(zeroHeightSource);
   }
-  if (auto scaled = ellipsoid.scaleToGeodeticSurface(ECEFDestination)) {
-    destinationAltitude = glm::length(ECEFDestination - *scaled);
+  if (auto cartographic =
+          this->_ellipsoid.cartesianToCartographic(ECEFDestination)) {
+    _flyToDestinationAltitude = cartographic->height;
   }
 
-  // Get distance between source and destination points to compute a wanted
-  // altitude from curve
-  double flyToDistance = glm::length(ECEFDestination - ECEFSource);
-
-  // Add first keypoint
-  this->_keypoints.push_back(ECEFSource);
-
-  for (int step = 1; step <= steps; step++) {
-    double percentage = (double)step / (steps + 1);
-    double altitude = glm::mix(sourceAltitude, destinationAltitude, percentage);
-    double phi =
-        glm::radians(this->FlyToGranularityDegrees * static_cast<double>(step));
-
-    glm::dvec3 rotated = glm::rotate(sourceUpVector, phi, flyRotationAxis);
-    if (auto scaled = ellipsoid.scaleToGeodeticSurface(rotated)) {
-      glm::dvec3 upVector = glm::normalize(*scaled);
-
-      // Add an altitude if we have a profile curve for it
-      double offsetAltitude = 0;
-      if (this->FlyToAltitudeProfileCurve != NULL) {
-        double maxAltitude = 30000;
-        if (this->FlyToMaximumAltitudeCurve != NULL) {
-          maxAltitude =
-              this->FlyToMaximumAltitudeCurve->GetFloatValue(flyToDistance);
-        }
-        offsetAltitude =
-            maxAltitude *
-            this->FlyToAltitudeProfileCurve->GetFloatValue(percentage);
-      }
-
-      glm::dvec3 point = *scaled + upVector * (altitude + offsetAltitude);
-      this->_keypoints.push_back(point);
+  // Compute a wanted altitude from curve
+  _flyToMaxAltitude = 0.0;
+  if (this->FlyToAltitudeProfileCurve != NULL) {
+    _flyToMaxAltitude = 30000;
+    if (this->FlyToMaximumAltitudeCurve != NULL) {
+      double flyToDistance = glm::length(ECEFDestination - ECEFSource);
+      _flyToMaxAltitude =
+          this->FlyToMaximumAltitudeCurve->GetFloatValue(flyToDistance);
     }
   }
-
-  this->_keypoints.push_back(ECEFDestination);
 
   // Tell the tick we will be flying from now
   this->_bFlyingToLocation = true;
@@ -205,16 +269,9 @@ void AGlobeAwareDefaultPawn::FlyToLocationLongitudeLatitudeHeight(
     double PitchAtDestination,
     bool CanInterruptByMoving) {
 
-  if (!IsValid(this->GetGeoreference())) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT("GlobeAwareDefaultPawn %s does not have a valid Georeference"),
-        *this->GetName());
-  }
-  const glm::dvec3& ecef =
-      this->GetGeoreference()->TransformLongitudeLatitudeHeightToEcef(
-          LongitudeLatitudeHeightDestination);
+  FVector ecef =
+      UCesiumWgs84Ellipsoid::LongitudeLatitudeHeightToEarthCenteredEarthFixed(
+          VecMath::createVector(LongitudeLatitudeHeightDestination));
   this->FlyToLocationECEF(
       ecef,
       YawAtDestination,
@@ -239,13 +296,7 @@ void AGlobeAwareDefaultPawn::FlyToLocationLongitudeLatitudeHeight(
 bool AGlobeAwareDefaultPawn::ShouldTickIfViewportsOnly() const { return true; }
 
 void AGlobeAwareDefaultPawn::_handleFlightStep(float DeltaSeconds) {
-  if (!IsValid(this->GlobeAnchor)) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "GlobeAwareDefaultPawn %s does not have a valid GeoreferenceComponent"),
-        *this->GetName());
+  if (!IsValid(this->GetGeoreference())) {
     return;
   }
 
@@ -257,21 +308,30 @@ void AGlobeAwareDefaultPawn::_handleFlightStep(float DeltaSeconds) {
     return;
   }
 
-  this->_currentFlyTime += static_cast<double>(DeltaSeconds);
+  this->_currentFlyTime += DeltaSeconds;
 
-  // double check that we don't have an empty list of keypoints
-  if (this->_keypoints.size() == 0) {
-    this->_bFlyingToLocation = false;
-    return;
+  // In order to accelerate at start and slow down at end, we use a progress
+  // profile curve
+  float flyPercentage;
+  if (this->_currentFlyTime >= this->FlyToDuration) {
+    flyPercentage = 1.0f;
+  } else if (this->FlyToProgressCurve) {
+    flyPercentage = glm::clamp(
+        this->FlyToProgressCurve->GetFloatValue(
+            this->_currentFlyTime / this->FlyToDuration),
+        0.0f,
+        1.0f);
+  } else {
+    flyPercentage = this->_currentFlyTime / this->FlyToDuration;
   }
 
-  // If we reached the end, set actual destination location and orientation
-  if (this->_currentFlyTime >= this->FlyToDuration) {
-    const glm::dvec3& finalPoint = _keypoints.back();
-    this->GlobeAnchor->MoveToECEF(finalPoint);
+  // If we reached the end, set actual destination location and
+  // orientation
+  if (flyPercentage >= 1.0f) {
+    this->GlobeAnchor->MoveToECEF(this->_flyToECEFDestination);
     Controller->SetControlRotation(this->_flyToDestinationRotation.Rotator());
     this->_bFlyingToLocation = false;
-    this->_currentFlyTime = 0.0;
+    this->_currentFlyTime = 0.0f;
 
     // Trigger callback accessible from BP
     UE_LOG(LogCesium, Verbose, TEXT("Broadcasting OnFlightComplete"));
@@ -282,31 +342,10 @@ void AGlobeAwareDefaultPawn::_handleFlightStep(float DeltaSeconds) {
 
   // We're currently in flight. Interpolate the position and orientation:
 
-  double rawPercentage = this->_currentFlyTime / this->FlyToDuration;
+  // Get the current position by interpolating with flyPercentage
+  glm::dvec3 currentPosition;
+  _interpolateFlightPosition(flyPercentage, currentPosition);
 
-  // In order to accelerate at start and slow down at end, we use a progress
-  // profile curve
-  double flyPercentage = rawPercentage;
-  if (this->FlyToProgressCurve != NULL) {
-    flyPercentage = glm::clamp(
-        static_cast<double>(
-            this->FlyToProgressCurve->GetFloatValue(rawPercentage)),
-        0.0,
-        1.0);
-  }
-
-  // Find the keypoint indexes corresponding to the current percentage
-  int lastIndex = static_cast<int>(
-      glm::floor(flyPercentage * (this->_keypoints.size() - 1)));
-  double segmentPercentage =
-      flyPercentage * (this->_keypoints.size() - 1) - lastIndex;
-  int nextIndex = lastIndex + 1;
-
-  // Get the current position by interpolating linearly between those two points
-  const glm::dvec3& lastPosition = this->_keypoints[lastIndex];
-  const glm::dvec3& nextPosition = this->_keypoints[nextIndex];
-  glm::dvec3 currentPosition =
-      glm::mix(lastPosition, nextPosition, segmentPercentage);
   // Set Location
   this->GlobeAnchor->MoveToECEF(currentPosition);
 
@@ -347,11 +386,24 @@ ACesiumGeoreference* AGlobeAwareDefaultPawn::GetGeoreference() const {
     UE_LOG(
         LogCesium,
         Error,
-        TEXT("GlobeAwareDefaultPawn %s does not have a GlobeAnchorComponent"),
+        TEXT(
+            "GlobeAwareDefaultPawn %s does not have a valid GlobeAnchorComponent."),
         *this->GetName());
     return nullptr;
   }
-  return this->GlobeAnchor->ResolveGeoreference();
+
+  ACesiumGeoreference* pGeoreference = this->GlobeAnchor->ResolveGeoreference();
+  if (!IsValid(pGeoreference)) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT(
+            "GlobeAwareDefaultPawn %s does not have a valie CesiumGeoreference."),
+        *this->GetName());
+    pGeoreference = nullptr;
+  }
+
+  return pGeoreference;
 }
 
 void AGlobeAwareDefaultPawn::_moveAlongViewAxis(EAxis::Type axis, double Val) {

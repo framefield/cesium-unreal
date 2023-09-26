@@ -19,8 +19,8 @@ glm::dmat4 CalcBoundsOperation::getTilesetToUnrealWorldMatrix() const {
 FBoxSphereBounds CalcBoundsOperation::operator()(
     const CesiumGeometry::BoundingSphere& sphere) const {
   glm::dmat4 matrix = getTilesetToUnrealWorldMatrix();
-  glm::dvec3 center = glm::dvec3(matrix * glm::dvec4(sphere.getCenter() * this->globalScale, 1.0));
-  glm::dmat3 halfAxes = glm::dmat3(matrix) * glm::dmat3(sphere.getRadius() * this->globalScale);
+  glm::dvec3 center = glm::dvec3(matrix * glm::dvec4(sphere.getCenter(), 1.0));
+  glm::dmat3 halfAxes = glm::dmat3(matrix) * glm::dmat3(sphere.getRadius());
 
   // The sphere only needs to reach the sides of the box, not the corners.
   double sphereRadius =
@@ -37,7 +37,7 @@ FBoxSphereBounds CalcBoundsOperation::operator()(
 FBoxSphereBounds CalcBoundsOperation::operator()(
     const CesiumGeometry::OrientedBoundingBox& box) const {
   glm::dmat4 matrix = getTilesetToUnrealWorldMatrix();
-  glm::dvec3 center = glm::dvec3(matrix * glm::dvec4(box.getCenter() * this->globalScale, 1.0));
+  glm::dvec3 center = glm::dvec3(matrix * glm::dvec4(box.getCenter(), 1.0));
   glm::dmat3 halfAxes = glm::dmat3(matrix) * box.getHalfAxes();
 
   glm::dvec3 corner1 = halfAxes[0] + halfAxes[1];
@@ -46,7 +46,6 @@ FBoxSphereBounds CalcBoundsOperation::operator()(
 
   double sphereRadius = glm::max(glm::length(corner1), glm::length(corner2));
   sphereRadius = glm::max(sphereRadius, glm::length(corner3));
-  sphereRadius *= this->globalScale;
 
   double maxX = glm::abs(halfAxes[0].x) + glm::abs(halfAxes[1].x) +
                 glm::abs(halfAxes[2].x);
@@ -58,7 +57,7 @@ FBoxSphereBounds CalcBoundsOperation::operator()(
   FBoxSphereBounds result;
   result.Origin = VecMath::createVector(center);
   result.SphereRadius = sphereRadius;
-  result.BoxExtent = FVector(maxX, maxY, maxZ) * this->globalScale;
+  result.BoxExtent = FVector(maxX, maxY, maxZ);
   return result;
 }
 

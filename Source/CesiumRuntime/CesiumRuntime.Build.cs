@@ -12,6 +12,7 @@ public class CesiumRuntime : ModuleRules
     public CesiumRuntime(ReadOnlyTargetRules Target) : base(Target)
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+        ShadowVariableWarningLevel = WarningLevel.Off;
 
         PublicIncludePaths.AddRange(
             new string[] {
@@ -81,6 +82,8 @@ public class CesiumRuntime : ModuleRules
         string[] libs = new string[]
         {
             "async++",
+            "Cesium3DTiles",
+            "Cesium3DTilesReader",
             "Cesium3DTilesSelection",
             "CesiumAsync",
             "CesiumGeometry",
@@ -92,11 +95,13 @@ public class CesiumRuntime : ModuleRules
             "draco",
             "ktx_read",
             //"MikkTSpace",
+            "meshoptimizer",
             "modp_b64",
             "s2geometry",
             "spdlog",
             "sqlite3",
             "tinyxml2",
+            "turbojpeg",
             "uriparser",
             "webpdecoder",
             "ktx_read",
@@ -111,11 +116,11 @@ public class CesiumRuntime : ModuleRules
 
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            libs = libs.Concat(new string[] { "tidy_static" }).ToArray();
+            libs = libs.Concat(new string[] { "tidy_static", "zlibstatic" }).ToArray();
         }
         else
         {
-            libs = libs.Concat(new string[] { "tidy" }).ToArray();
+            libs = libs.Concat(new string[] { "tidy", "z" }).ToArray();
         }
 
         if (preferDebug)
@@ -175,15 +180,7 @@ public class CesiumRuntime : ModuleRules
             }
         );
 
-        if (Target.bCompilePhysX && !Target.bUseChaos)
-        {
-            PrivateDependencyModuleNames.Add("PhysXCooking");
-            PrivateDependencyModuleNames.Add("PhysicsCore");
-        }
-        else
-        {
-            PrivateDependencyModuleNames.Add("Chaos");
-        }
+        PrivateDependencyModuleNames.Add("Chaos");
 
         if (Target.bBuildEditor == true)
         {
