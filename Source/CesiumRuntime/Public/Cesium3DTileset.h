@@ -666,26 +666,45 @@ public:
       meta = (EditCondition = "UseLodTransitions", EditConditionHides))
   float LodTransitionLength = 0.5f;
 
+  /// BEGIN FF CHANGES
   UPROPERTY(
     EditAnywhere,
     BlueprintReadWrite,
-    Category = "Cesium|Tile Culling|Experimental")
+    Category = "Cesium|Tile Culling")
   bool EvaluateCustomTileCulling = false;
 
-  UFUNCTION(BlueprintImplementableEvent, Category = "Cesium|Tile Culling|Experimental")
+  UFUNCTION(BlueprintImplementableEvent, Category = "Cesium|Tile Culling")
   bool CustomIsTileCulled(const FVector& Center, const FVector& Extent);
 
   UPROPERTY(
     EditAnywhere,
     BlueprintReadWrite,
-    Category = "Cesium|Tile Culling|Experimental")
+    Category = "Cesium|Tile Culling")
   bool EvaluateTileCullingIntersection = false;
 
   UPROPERTY(
     EditAnywhere,
     BlueprintReadWrite,
-    Category = "Cesium|Tile Culling|Experimental")
+    Category = "Cesium|Tile Culling")
   FBox TileCullingIntersectionBox;
+
+  UPROPERTY(
+    EditAnywhere,
+    BlueprintReadOnly,
+    Category = "Cesium|Tile Culling")
+  FVector TileBoundsMin;
+
+  UPROPERTY(
+    EditAnywhere,
+    BlueprintReadOnly,
+    Category = "Cesium|Tile Culling")
+  FVector TileBoundsMax;
+
+  UPROPERTY(
+    EditAnywhere,
+    BlueprintReadWrite,
+    Category = "Cesium|Tile Culling")
+  bool DrawTileCullingDebug = false;
 
   UPROPERTY(
       EditAnywhere,
@@ -694,7 +713,10 @@ public:
       BlueprintSetter = SetVisible,
       Category = "Rendering")
   bool Visible = true;
+
+
   bool _wasVisible = true;
+  // END FF CHANGES
 
 
 private:

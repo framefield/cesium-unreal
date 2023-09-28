@@ -2111,12 +2111,11 @@ void ACesium3DTileset::Tick(float DeltaTime) {
   {
     std::vector<Cesium3DTilesSelection::Tile*> ChangedRenderEntries;
     std::unordered_set<Cesium3DTilesSelection::Tile*> ChangedTilesFadingOut = result.tilesFadingOut;
-    auto tilesCulled = result.tilesCulled;
+    auto TilesCulled = result.tilesCulled;
 
     const auto& CombinedMatrix = ueTilesetToUeWorld * cesiumTilesetToUeTileset;
 
-    constexpr bool DrawDebug = false;
-    if (DrawDebug)
+    if (DrawTileCullingDebug)
     {
       DrawDebugBox(
         this->GetWorld(),
@@ -2126,8 +2125,11 @@ void ACesium3DTileset::Tick(float DeltaTime) {
         false,
         0,
         1,
-        1);
+        0.5);
     }
+
+    TileBoundsMax = FVector(FLT_MIN, FLT_MIN, FLT_MIN);
+    TileBoundsMin = FVector(FLT_MAX, FLT_MAX, FLT_MAX);
 
     for (const auto Tile : result.tilesToRenderThisFrame)
     {
@@ -2135,12 +2137,12 @@ void ACesium3DTileset::Tick(float DeltaTime) {
       {
         bool IsCulled = false;
         bool HasRenderContent = false;
+          const auto& UnrealTileBounds = GetTileBounds(CombinedMatrix, Tile, HasRenderContent);
         if (EvaluateCustomTileCulling)
         {
-          const auto& UnrealTileBounds = GetTileBounds(CombinedMatrix, Tile, HasRenderContent);
           IsCulled = this->CustomIsTileCulled(UnrealTileBounds.Origin, UnrealTileBounds.BoxExtent);
 
-          if (DrawDebug)
+          if (DrawTileCullingDebug)
           {
             DrawDebugBox(
               this->GetWorld(),
@@ -2150,15 +2152,14 @@ void ACesium3DTileset::Tick(float DeltaTime) {
               false,
               0,
               1,
-              IsCulled ? 0.5 : 1);
+              IsCulled ? 0.25 : 0.5);
           }
         }
         else if (EvaluateTileCullingIntersection)
         {
-          const auto& UnrealTileBounds = GetTileBounds(CombinedMatrix, Tile, HasRenderContent);
           IsCulled = !TileCullingIntersectionBox.Intersect(UnrealTileBounds.GetBox());
 
-          if (DrawDebug)
+          if (DrawTileCullingDebug)
           {
             DrawDebugBox(
               this->GetWorld(),
@@ -2168,12 +2169,14 @@ void ACesium3DTileset::Tick(float DeltaTime) {
               false,
               0,
               1,
-              IsCulled ? 0.5 : 1);
+              IsCulled ? 0.25 : 0.5);
           }
         }
 
         if (!IsCulled)
         {
+          TileBoundsMin = FVector::Min(TileBoundsMin, UnrealTileBounds.Origin - UnrealTileBounds.BoxExtent);
+          TileBoundsMax = FVector::Max(TileBoundsMax, UnrealTileBounds.Origin + UnrealTileBounds.BoxExtent);
           ChangedRenderEntries.push_back(Tile);
         }
         else
@@ -2182,14 +2185,27 @@ void ACesium3DTileset::Tick(float DeltaTime) {
           {
             ChangedTilesFadingOut.insert(Tile);
           }
-          tilesCulled++;
+          TilesCulled++;
         }
       }
-
-      result.tilesToRenderThisFrame = ChangedRenderEntries;
-      result.tilesFadingOut = ChangedTilesFadingOut;
-      result.tilesCulled = tilesCulled;
     }
+
+    if (DrawTileCullingDebug)
+    {
+      DrawDebugLine(
+        this->GetWorld(),
+        TileBoundsMin,
+        TileBoundsMax,
+        FColor::Blue,
+        false,
+        0,
+        1,
+        0.5);
+    }
+
+    result.tilesToRenderThisFrame = ChangedRenderEntries;
+    result.tilesFadingOut = ChangedTilesFadingOut;
+    result.tilesCulled = TilesCulled;
   }
   /// END FF CHANGES
 
