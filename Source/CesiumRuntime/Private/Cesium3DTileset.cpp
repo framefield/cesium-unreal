@@ -1968,6 +1968,56 @@ static void updateTileFade(Cesium3DTilesSelection::Tile* pTile, bool fadingIn) {
   pGltf->UpdateFade(percentage, fadingIn);
 }
 
+FBoxSphereBounds GetTileBounds(const glm::dmat4& Matrix, Cesium3DTilesSelection::Tile* pTile, bool& HasRenderContent)
+{
+  HasRenderContent = false;
+  const Cesium3DTilesSelection::TileContent& content = pTile->getContent();
+  const Cesium3DTilesSelection::TileRenderContent* pRenderContent = content.getRenderContent();
+  if (pRenderContent)
+  {
+    HasRenderContent = true;
+    const auto Gltf = static_cast<UCesiumGltfComponent*>(pRenderContent->getRenderResources());
+    if (Gltf)
+    {
+      FBoxSphereBounds CombinedBounds;
+      bool FoundBounds = false;
+      for (const auto& Child : Gltf->GetAttachChildren())
+      {
+        if (Child->IsA<UCesiumGltfPrimitiveComponent>())
+        {
+          const auto Primitive = Cast<UCesiumGltfPrimitiveComponent>(Child);
+          if (Primitive && Primitive->IsVisible())
+          {
+            const auto& PrimitiveBounds = Primitive->CalcBounds(Primitive->GetComponentTransform());
+            if (PrimitiveBounds.SphereRadius > 0)
+            {
+              if (FoundBounds)
+              {
+                CombinedBounds = CombinedBounds + PrimitiveBounds;
+              }
+              else
+              {
+                CombinedBounds = PrimitiveBounds;
+              }
+              FoundBounds = true;
+            }
+          }
+        }
+      }
+
+      if (FoundBounds)
+      {
+        return CombinedBounds;
+      }
+    }
+  }
+
+  const auto& FallbackBounds = std::visit(
+    CalcBoundsOperationWithMatrix{Matrix, pTile->getTransform()},
+    pTile->getBoundingVolume());
+  return FallbackBounds;
+}
+
 // Called every frame
 void ACesium3DTileset::Tick(float DeltaTime) {
   TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::TilesetTick)
@@ -2056,10 +2106,12 @@ void ACesium3DTileset::Tick(float DeltaTime) {
           ? this->_pTileset->updateViewOffline(frustums)
           : this->_pTileset->updateView(frustums, DeltaTime);
 
-
-
-  if (EvaluateCustomTileCulling || EvaluateTileCullingIntersection) {
-    std::vector<Cesium3DTilesSelection::Tile*> ChangedEntries;
+  /// BEGIN FF CHANGES
+  if (EvaluateCustomTileCulling || EvaluateTileCullingIntersection)
+  {
+    std::vector<Cesium3DTilesSelection::Tile*> ChangedRenderEntries;
+    std::unordered_set<Cesium3DTilesSelection::Tile*> ChangedTilesFadingOut = result.tilesFadingOut;
+    auto tilesCulled = result.tilesCulled;
 
     const auto& CombinedMatrix = ueTilesetToUeWorld * cesiumTilesetToUeTileset;
 
@@ -2067,35 +2119,30 @@ void ACesium3DTileset::Tick(float DeltaTime) {
     if (DrawDebug)
     {
       DrawDebugBox(
-          this->GetWorld(),
-          TileCullingIntersectionBox.GetCenter(),
-          TileCullingIntersectionBox.GetExtent(),
-          FColor::Cyan,
-          false,
-          0,
-          1,
-          1);
+        this->GetWorld(),
+        TileCullingIntersectionBox.GetCenter(),
+        TileCullingIntersectionBox.GetExtent(),
+        FColor::Cyan,
+        false,
+        0,
+        1,
+        1);
     }
 
-    for (const auto Tile : result.tilesToRenderThisFrame) {
-      if (Tile != nullptr) {
-        const auto& UnrealTileBounds = std::visit(
-            CalcBoundsOperationWithMatrix{CombinedMatrix, Tile->getTransform()},
-            Tile->getBoundingVolume());
-
+    for (const auto Tile : result.tilesToRenderThisFrame)
+    {
+      if (Tile != nullptr)
+      {
         bool IsCulled = false;
-        if (EvaluateCustomTileCulling) {
+        bool HasRenderContent = false;
+        if (EvaluateCustomTileCulling)
+        {
+          const auto& UnrealTileBounds = GetTileBounds(CombinedMatrix, Tile, HasRenderContent);
+          IsCulled = this->CustomIsTileCulled(UnrealTileBounds.Origin, UnrealTileBounds.BoxExtent);
 
-          IsCulled = this->CustomIsTileCulled(
-              UnrealTileBounds.Origin,
-              UnrealTileBounds.BoxExtent);
-        } else if (EvaluateTileCullingIntersection) {
-          IsCulled = !this->TileCullingIntersectionBox.Intersect(
-              UnrealTileBounds.GetBox());
-        }
-
-        if (DrawDebug) {
-          DrawDebugBox(
+          if (DrawDebug)
+          {
+            DrawDebugBox(
               this->GetWorld(),
               UnrealTileBounds.Origin,
               UnrealTileBounds.BoxExtent,
@@ -2104,16 +2151,47 @@ void ACesium3DTileset::Tick(float DeltaTime) {
               0,
               1,
               IsCulled ? 0.5 : 1);
+          }
+        }
+        else if (EvaluateTileCullingIntersection)
+        {
+          const auto& UnrealTileBounds = GetTileBounds(CombinedMatrix, Tile, HasRenderContent);
+          IsCulled = !TileCullingIntersectionBox.Intersect(UnrealTileBounds.GetBox());
+
+          if (DrawDebug)
+          {
+            DrawDebugBox(
+              this->GetWorld(),
+              UnrealTileBounds.GetBox().GetCenter(),
+              UnrealTileBounds.GetBox().GetExtent(),
+              IsCulled ? FColor::Red : FColor::Green,
+              false,
+              0,
+              1,
+              IsCulled ? 0.5 : 1);
+          }
         }
 
-        if (!IsCulled) {
-          ChangedEntries.push_back(Tile);
+        if (!IsCulled)
+        {
+          ChangedRenderEntries.push_back(Tile);
+        }
+        else
+        {
+          if (HasRenderContent)
+          {
+            ChangedTilesFadingOut.insert(Tile);
+          }
+          tilesCulled++;
         }
       }
 
-      result.tilesToRenderThisFrame = ChangedEntries;
+      result.tilesToRenderThisFrame = ChangedRenderEntries;
+      result.tilesFadingOut = ChangedTilesFadingOut;
+      result.tilesCulled = tilesCulled;
     }
   }
+  /// END FF CHANGES
 
   updateLastViewUpdateResultState(result);
   this->UpdateLoadStatus();
