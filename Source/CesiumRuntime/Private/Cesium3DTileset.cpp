@@ -4,8 +4,6 @@
 #include "Async/Async.h"
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
-#include "Cesium3DTilesSelection/BingMapsRasterOverlay.h"
-#include "Cesium3DTilesSelection/CreditSystem.h"
 #include "Cesium3DTilesSelection/IPrepareRendererResources.h"
 #include "Cesium3DTilesSelection/Tile.h"
 #include "Cesium3DTilesSelection/Tileset.h"
@@ -14,20 +12,15 @@
 #include "Cesium3DTilesetLoadFailureDetails.h"
 #include "Cesium3DTilesetRoot.h"
 #include "CesiumActors.h"
-#include "CesiumAsync/IAssetResponse.h"
 #include "CesiumBoundingVolumeComponent.h"
 #include "CesiumCamera.h"
 #include "CesiumCameraManager.h"
 #include "CesiumCommon.h"
 #include "CesiumCustomVersion.h"
-#include "CesiumGeospatial/Cartographic.h"
-#include "CesiumGeospatial/Ellipsoid.h"
 #include "CesiumGeospatial/GlobeTransforms.h"
 #include "CesiumGltf/ImageCesium.h"
 #include "CesiumGltf/Ktx2TranscodeTargets.h"
 #include "CesiumGltfComponent.h"
-#include "CesiumGltfPointsComponent.h"
-#include "CesiumGltfPointsSceneProxy.h"
 #include "CesiumGltfPointsSceneProxyUpdater.h"
 #include "CesiumGltfPrimitiveComponent.h"
 #include "CesiumLifetime.h"
@@ -35,12 +28,10 @@
 #include "CesiumRuntime.h"
 #include "CesiumRuntimeSettings.h"
 #include "CesiumTextureUtility.h"
-#include "CesiumTransforms.h"
 #include "CesiumViewExtension.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "CreateGltfOptions.h"
 #include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/SceneCapture2D.h"
 #include "Engine/Texture.h"
@@ -48,21 +39,15 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
-#include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "LevelSequenceActor.h"
 #include "LevelSequencePlayer.h"
 #include "Math/UnrealMathUtility.h"
-#include "Misc/EnumRange.h"
-#include "PhysicsPublicCore.h"
 #include "PixelFormat.h"
-#include "SceneTypes.h"
 #include "StereoRendering.h"
 #include "VecMath.h"
-#include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
-#include <glm/trigonometric.hpp>
 #include <memory>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <spdlog/spdlog.h>
@@ -2340,6 +2325,7 @@ void ACesium3DTileset::PostEditChangeProperty(
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, UseLodTransitions) ||
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, ShowCreditsOnScreen) ||
+      PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, Root) ||
       // For properties nested in structs, GET_MEMBER_NAME_CHECKED will prefix
       // with the struct name, so just do a manual string comparison.
       PropNameAsString == TEXT("RenderCustomDepth") ||

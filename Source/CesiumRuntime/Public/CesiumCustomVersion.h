@@ -21,6 +21,16 @@ struct CESIUMRUNTIME_API FCesiumCustomVersion {
     // of the normal Mobility property on the RootComponent.
     TilesetMobilityRemoved = 3,
 
+    // The UCesiumGlobeAnchorComponent's globe transformation changed from being
+    // an array of doubles to being an FMatrix.
+    GlobeAnchorTransformationAsFMatrix = 4,
+
+    // The origin shifting behavior became an independent component rather than
+    // built into the CesiumGeoreference.
+    OriginShiftComponent = 5,
+
+    FlyToComponent = 6,
+
     VersionPlusOne,
     LatestVersion = VersionPlusOne - 1
   };

@@ -7,8 +7,20 @@
 - The old sub-level system, based on Unreal's old (and now deprecated) World Composition system, has been removed. Instead, create Level Instance Actors and attach the "Cesium Sub Level Component" to them to achieve similar functionality. Old levels will automatically be converted to the new system when they are loaded in the Editor.
 - `CesiumSunSky` now uses a default `TransmittanceMinLightElevationAngle` value on its `SkyAtmosphere` component of 90.0 degrees instead of -90.0 degrees. This will generally improve lighting when far from the CesiumGeoreference origin, but it is a breaking change because it may change the lighting conditions in existing levels, particularly at sunrise and sunset.
 - The `Mobility` property on `ACesium3DTileset` is now obsolete. Instead, use the normal mechanism of setting the root component's mobility.
-- Removed many methods that from the C++ interface of `ACesiumGeoreference` that used `glm` vector types. Use the versions that work with Unreal types instead.
+- Removed many methods that from the C++ interface of `ACesiumGeoreference` and `UCesiumGlobeAnchorComponent` that used `glm` vector types. Use the versions that work with Unreal types instead.
 - The `ComputeEastSouthUpToUnreal` function on `ACesiumGeoreference` has been renamed to `ComputeEastSouthUpToUnrealTransformation` and now returns a matrix that includes the translation component of the transformation. Previously it only included the rotation component.
+- Numerous properties on `CesiumGlobeAnchorComponent` must now be accessed with get/set functions from C++, instead of direct field access.
+- Renamed the following on `CesiumGlobeAnchorComponent`:
+  - `GetECEF` renamed to `GetEarthCenteredEarthFixedPosition`
+  - `MoveToECEF` renamed to `MoveToEarthCenteredEarthFixedPosition`
+- Deprecated the `InvalidateResolvedGeoreference` function on `CesiumGlobeAnchorComponent`.
+- The `SubLevelCamera` property on `CesiumGeoreference` has been deprecated, and the georeference no longer automatically handles sub-level transitions. Instead, you must add a `CesiumOriginShiftComponent` to the `Actor` that should trigger sub-level loading. We attempt to add the necessary component automatically when loading old levels containing sub-levels.
+- Removed the old `FloatingPawn` that has been deprecated since v1.3.0.
+- Deprecated the flight functionality in `GlobeAwareDefaultPawn`. This functionality is now found in `CesiumFlyToComponent` and can be used with any Pawn or Actor. Existing Blueprints should continue to work, but C++ code will likely require changes.
+- Renamed the various Curve assets used with flights to have more descriptive names and moved them to the `Curves/FlyTo` folder. Redirectors should upgrade references to the old names.
+  - `Curve_AltitudeProfile_Float` was renamed to `Curve_CesiumFlyToDefaultHeightPercentage_Float`
+  - `Curve_MaxAltitude_Float` was renamed to `Curve_CesiumFlyToDefaultMaximumHeightByDistance_Float`
+  - `Curve_Progress_Float` was renamed to `Curve_CesiumFlyToDefaultProgress_Float`
 
 ##### Additions :tada:
 
@@ -20,6 +32,12 @@
 - `ACesiumGeoreference` can now act as a parent Actor. By adjusting the georeference's transformation, the entire globe can be located, rotated, and scaled within the Unreal Engine world.
 - Added `AtmosphereHeight`, `AerialPerspectiveViewDistanceScale`, `RayleighExponentialDistribution`, and `MieExponentialDistribution` properties to `ACesiumSunSky`. These have the same function as the properties of the same name on Unreal's built-in SkyAtmosphere component, except that they automatically respond to the scale of the globe.
 - Added `UCesiumWgs84Ellipsoid` Blueprint function library class.
+- Longitude / Latitude / Height properties on CesiumGeoreference and CesiumGlobeAnchorComponent are now settable using degrees-minutes-seconds in addition to decimal degrees.
+- Added the ability to interactively set the orientation of a `CesiumGlobeAnchorComponent` relative to an East-South-Up coordinate system.
+- Added `ComputeEastSouthUpAtEarthCenteredEarthFixedPositionToUnrealTransformation` function to `CesiumGeoreference`.
+- Added `CesiumOriginShiftComponent`. In addition to triggering transitions between sub-levels, this component optionally allows the Unreal world origin to be shifted as the Actor to which it is attached moves. The shifting may be done by either changing the `CesiumGeoreference` origin or by setting Unreal's `OriginLocation` property.
+- Sub-level transitions can now be triggered manually from Blueprints using functions on the `CesiumSubLevelSwitcherComponent` attached to the `CesiumGeoreference`. Be sure to disable any `CesiumOriginShiftComponent` instances in your level if you want manual control of sub-level switching.
+- Added `CesiumFlyToComponent` to allow animated flights of any Actor or Pawn.
 
 ##### Fixes :wrench:
 
