@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CesiumActorComponentWithGlobeAnchor.h"
+#include "CesiumGlobeAnchoredActorComponent.h"
 #include "CoreMinimal.h"
 #include "CesiumOriginShiftComponent.generated.h"
 
@@ -40,18 +40,6 @@ enum class ECesiumOriginShiftMode : uint8 {
    * objects _will_ be moved when the origin is shifted.
    */
   ChangeCesiumGeoreference,
-
-  /**
-   * Unreal's built-in "World Origin Location" will change as the Actor moves in
-   * order to maintain small, precise coordinate values near the Actor. Because
-   * this is a translation only (no rotation), +Z will not stay aligned with the
-   * globe's local "up" direction. Any objects that are not anchored to the
-   * globe with a CesiumGlobeAnchorComponent will appear to move when the Actor
-   * enters a sub-level, but objects will generally maintain their position
-   * otherwise, as long as they respond correctly to Unreal's ApplyWorldOffset
-   * method.
-   */
-  ChangeWorldOriginLocation
 };
 
 /**
@@ -74,7 +62,7 @@ enum class ECesiumOriginShiftMode : uint8 {
  */
 UCLASS(ClassGroup = "Cesium", Meta = (BlueprintSpawnableComponent))
 class CESIUMRUNTIME_API UCesiumOriginShiftComponent
-    : public UCesiumActorComponentWithGlobeAnchor {
+    : public UCesiumGlobeAnchoredActorComponent {
   GENERATED_BODY()
 
 #pragma region Properties
@@ -131,7 +119,7 @@ public:
    * Gets the maximum distance between the origin of the Unreal coordinate
    * system and the Actor to which this component is attached. When this
    * distance is exceeded, the origin is shifted to bring it close to the Actor.
-   * This property is ignored if the Mode proeprty is set to "Disabled" or
+   * This property is ignored if the Mode property is set to "Disabled" or
    * "Switch Sub Levels Only".
    *
    * When the value of this property is 0.0, the origin is shifted continuously.
@@ -143,7 +131,7 @@ public:
    * Sets the maximum distance between the origin of the Unreal coordinate
    * system and the Actor to which this component is attached. When this
    * distance is exceeded, the origin is shifted to bring it close to the Actor.
-   * This property is ignored if the Mode proeprty is set to "Disabled" or
+   * This property is ignored if the Mode property is set to "Disabled" or
    * "Switch Sub Levels Only".
    *
    * When the value of this property is 0.0, the origin is shifted continuously.

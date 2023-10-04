@@ -28,6 +28,7 @@
 #include "CesiumRuntime.h"
 #include "CesiumRuntimeSettings.h"
 #include "CesiumTextureUtility.h"
+#include "CesiumTileExcluder.h"
 #include "CesiumViewExtension.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "CreateGltfOptions.h"
@@ -61,6 +62,9 @@ FCesium3DTilesetLoadFailure OnCesium3DTilesetLoadFailure{};
 #include "EditorViewportClient.h"
 #include "LevelEditorViewport.h"
 #endif
+
+// Avoid complaining about the deprecated metadata struct
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 // Sets default values
 ACesium3DTileset::ACesium3DTileset()
@@ -106,6 +110,7 @@ ACesium3DTileset::ACesium3DTileset()
 }
 
 ACesium3DTileset::~ACesium3DTileset() { this->DestroyTileset(); }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TSoftObjectPtr<ACesiumGeoreference> ACesium3DTileset::GetGeoreference() const {
   return this->Georeference;
@@ -134,7 +139,7 @@ ACesiumGeoreference* ACesium3DTileset::ResolveGeoreference() {
     this->ResolvedGeoreference = this->Georeference.Get();
   } else {
     this->ResolvedGeoreference =
-        ACesiumGeoreference::GetDefaultGeoreference(this);
+        ACesiumGeoreference::GetDefaultGeoreferenceForActor(this);
   }
 
   UCesium3DTilesetRoot* pRoot = Cast<UCesium3DTilesetRoot>(this->RootComponent);
@@ -699,8 +704,13 @@ public:
     options.ignoreKhrMaterialsUnlit =
         this->_pActor->GetIgnoreKhrMaterialsUnlit();
 
-    options.pEncodedMetadataDescription =
-        &this->_pActor->_encodedMetadataDescription;
+    if (this->_pActor->_featuresMetadataDescription) {
+      options.pFeaturesMetadataDescription =
+          &(*this->_pActor->_featuresMetadataDescription);
+    } else if (this->_pActor->_metadataDescription_DEPRECATED) {
+      options.pEncodedMetadataDescription_DEPRECATED =
+          &(*this->_pActor->_metadataDescription_DEPRECATED);
+    }
 
     TUniquePtr<UCesiumGltfComponent::HalfConstructed> pHalf =
         UCesiumGltfComponent::CreateOffGameThread(transform, options);
@@ -966,15 +976,38 @@ void ACesium3DTileset::LoadTileset() {
   TArray<UCesiumRasterOverlay*> rasterOverlays;
   this->GetComponents<UCesiumRasterOverlay>(rasterOverlays);
 
-  const UCesiumEncodedMetadataComponent* pEncodedMetadataDescriptionComponent =
-      this->FindComponentByClass<UCesiumEncodedMetadataComponent>();
-  if (pEncodedMetadataDescriptionComponent) {
-    this->_encodedMetadataDescription = {
-        pEncodedMetadataDescriptionComponent->FeatureTables,
-        pEncodedMetadataDescriptionComponent->FeatureTextures};
-  } else {
-    this->_encodedMetadataDescription = {};
+  TArray<UCesiumTileExcluder*> tileExcluders;
+  this->GetComponents<UCesiumTileExcluder>(tileExcluders);
+
+  const UCesiumFeaturesMetadataComponent* pFeaturesMetadataComponent =
+      this->FindComponentByClass<UCesiumFeaturesMetadataComponent>();
+
+  // Check if this component exists for backwards compatibility.
+  PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+  const UDEPRECATED_CesiumEncodedMetadataComponent* pEncodedMetadataComponent =
+      this->FindComponentByClass<UDEPRECATED_CesiumEncodedMetadataComponent>();
+
+  this->_featuresMetadataDescription = std::nullopt;
+  this->_metadataDescription_DEPRECATED = std::nullopt;
+
+  if (pFeaturesMetadataComponent) {
+    FCesiumFeaturesMetadataDescription& description =
+        this->_featuresMetadataDescription.emplace();
+    description.Features = {pFeaturesMetadataComponent->FeatureIdSets};
+    description.ModelMetadata = {pFeaturesMetadataComponent->PropertyTables};
+  } else if (pEncodedMetadataComponent) {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT(
+            "CesiumEncodedMetadataComponent is deprecated. Use CesiumFeaturesMetadataComponent instead."));
+    this->_metadataDescription_DEPRECATED = {
+        pEncodedMetadataComponent->FeatureTables,
+        pEncodedMetadataComponent->FeatureTextures};
   }
+
+  PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
   this->_cesiumViewExtension = cesiumViewExtension;
 
@@ -1131,6 +1164,12 @@ void ACesium3DTileset::LoadTileset() {
     }
   }
 
+  for (UCesiumTileExcluder* pTileExcluder : tileExcluders) {
+    if (pTileExcluder->IsActive()) {
+      pTileExcluder->AddToTileset();
+    }
+  }
+
   switch (this->TilesetSource) {
   case ETilesetSource::FromUrl:
     UE_LOG(
@@ -1195,6 +1234,14 @@ void ACesium3DTileset::DestroyTileset() {
   for (UCesiumRasterOverlay* pOverlay : rasterOverlays) {
     if (pOverlay->IsActive()) {
       pOverlay->RemoveFromTileset();
+    }
+  }
+
+  TArray<UCesiumTileExcluder*> tileExcluders;
+  this->GetComponents<UCesiumTileExcluder>(tileExcluders);
+  for (UCesiumTileExcluder* pTileExcluder : tileExcluders) {
+    if (pTileExcluder->IsActive()) {
+      pTileExcluder->RemoveFromTileset();
     }
   }
 
@@ -2351,6 +2398,12 @@ void ACesium3DTileset::PostEditChangeProperty(
 
     for (UCesiumRasterOverlay* pOverlay : rasterOverlays) {
       pOverlay->Refresh();
+    }
+    TArray<UCesiumTileExcluder*> tileExcluders;
+    this->GetComponents<UCesiumTileExcluder>(tileExcluders);
+
+    for (UCesiumTileExcluder* pTileExcluder : tileExcluders) {
+      pTileExcluder->Refresh();
     }
 
     // Maximum Screen Space Error can affect how attenuated points are rendered,

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2023 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -46,6 +46,24 @@ private:
   TSoftObjectPtr<ACesiumGeoreference> Georeference = nullptr;
 
   /**
+   * The resolved georeference used by this component. This is not serialized
+   * because it may point to a Georeference in the PersistentLevel while this
+   * component is in a sub-level. If the Georeference property is specified,
+   * however then this property will have the same value.
+   *
+   * This property will be null before ResolveGeoreference is called, which
+   * happens automatically when the component is registered.
+   */
+  UPROPERTY(
+      Transient,
+      VisibleAnywhere,
+      BlueprintReadOnly,
+      BlueprintGetter = GetResolvedGeoreference,
+      Category = "Cesium",
+      Meta = (AllowPrivateAccess))
+  ACesiumGeoreference* ResolvedGeoreference = nullptr;
+
+  /**
    * Whether to adjust the Actor's orientation based on globe curvature as the
    * Actor moves.
    *
@@ -67,7 +85,6 @@ private:
   UPROPERTY(
       EditAnywhere,
       BlueprintReadWrite,
-      Category = "Cesium",
       BlueprintGetter = GetAdjustOrientationForGlobeWhenMoving,
       BlueprintSetter = SetAdjustOrientationForGlobeWhenMoving,
       Category = "Cesium",
@@ -88,23 +105,6 @@ private:
       Category = "Cesium",
       Meta = (AllowPrivateAccess))
   bool TeleportWhenUpdatingTransform = true;
-
-  /**
-   * The resolved georeference used by this component. This is not serialized
-   * because it may point to a Georeference in the PersistentLevel while this
-   * component is in a sub-level. If the Georeference property is specified,
-   * however then this property will have the same value.
-   *
-   * This property will be null before ResolveGeoreference is called, which
-   * happens automatically when the component is registered.
-   */
-  UPROPERTY(
-      Transient,
-      BlueprintReadOnly,
-      BlueprintGetter = GetResolvedGeoreference,
-      Category = "Cesium",
-      Meta = (AllowPrivateAccess))
-  ACesiumGeoreference* ResolvedGeoreference = nullptr;
 
   /**
    * The 4x4 transformation matrix from the Actors's local coordinate system to
@@ -160,7 +160,7 @@ public:
    * Gets the resolved georeference used by this component. This is not
    * serialized because it may point to a Georeference in the PersistentLevel
    * while this component is in a sub-level. If the Georeference property is
-   * specified, however then this property will have the same value.
+   * manually specified, however, then this property will have the same value.
    *
    * This property will be null before ResolveGeoreference is called, which
    * happens automatically when the component is registered.
@@ -173,10 +173,10 @@ public:
    * the value of the Georeference property if it is set. Otherwise, finds a
    * Georeference in the World and returns it, creating it if necessary. The
    * resolved Georeference is cached so subsequent calls to this function will
-   * return the same instance.
+   * return the same instance, unless ForceReresolve is true.
    */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  ACesiumGeoreference* ResolveGeoreference();
+  ACesiumGeoreference* ResolveGeoreference(bool bForceReresolve = false);
 
   /**
    * Gets the 4x4 transformation matrix from the Actors's local coordinate
@@ -276,7 +276,7 @@ public:
 public:
   /**
    * Gets the longitude in degrees (X), latitude in degrees (Y),
-   * and height in meters about the ellipsoid (Z) of the actor.
+   * and height in meters above the ellipsoid (Z) of the actor.
    *
    * Do not confuse the ellipsoid height with a geoid height or height above
    * mean sea level, which can be tens of meters higher or lower depending on
@@ -335,7 +335,7 @@ public:
   void MoveToLongitudeLatitudeHeight(const FVector& LongitudeLatitudeHeight);
 
   /**
-   * Gets the Earth-Centered, Earth-Fixed (ECEF) coordinates of the actor in
+   * Gets the Earth-Centered, Earth-Fixed (ECEF) coordinates of the Actor in
    * meters.
    */
   UFUNCTION(
