@@ -1,4 +1,7 @@
 #include "CesiumTileExcluder.h"
+
+#include <Cesium3DTilesSelection/Tileset.h>
+
 #include "Cesium3DTileset.h"
 #include "CesiumLifetime.h"
 #include "CesiumTileExcluderAdapter.h"

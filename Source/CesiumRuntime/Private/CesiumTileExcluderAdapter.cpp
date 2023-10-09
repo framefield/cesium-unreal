@@ -1,4 +1,6 @@
 #include "CesiumTileExcluderAdapter.h"
+
+#include "CesiumGeoreference.h"
 #include "VecMath.h"
 
 bool CesiumTileExcluderAdapter::shouldExclude(
