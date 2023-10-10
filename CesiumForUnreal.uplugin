@@ -40,4 +40,6 @@
 			"Enabled": true
 		}
 	]
+  "VersionName": "2.0.0 Preview 1 framefield v15",
+  "FriendlyName": "Framefield Fork of Cesium for Unreal v15",
 }
