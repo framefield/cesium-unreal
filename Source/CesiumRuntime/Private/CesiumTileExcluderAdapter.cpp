@@ -1,5 +1,5 @@
 #include "CesiumTileExcluderAdapter.h"
-
+#include "Cesium3DTilesSelection/Tile.h"
 #include "CesiumGeoreference.h"
 #include "VecMath.h"
 
